@@ -115,6 +115,12 @@ const routes = [
         meta: { title: '即梦AI' },
         component: () => import('@/views/Jimeng.vue'),
       },
+      {
+        name: 'ecom',
+        path: '/ecom',
+        meta: { title: '电商生图' },
+        component: () => import('@/views/ecom/EcomPage.vue'),
+      },
     ],
   },
   {
@@ -353,6 +359,30 @@ const routes = [
         name: 'admin-manger',
         meta: { title: '管理员' },
         component: () => import('@/views/admin/Manager.vue'),
+      },
+      {
+        path: '/admin/aicommerce/templates',
+        name: 'admin-aicommerce-templates',
+        meta: { title: 'Prompt 模板管理' },
+        component: () => import('@/views/admin/aicommerce/TemplateList.vue'),
+      },
+      {
+        path: '/admin/aicommerce/prices',
+        name: 'admin-aicommerce-prices',
+        meta: { title: '积分定价配置' },
+        component: () => import('@/views/admin/aicommerce/PriceConfig.vue'),
+      },
+      {
+        path: '/admin/aicommerce/models',
+        name: 'admin-aicommerce-models',
+        meta: { title: 'AI 模型管理' },
+        component: () => import('@/views/admin/aicommerce/ModelList.vue'),
+      },
+      {
+        path: '/admin/aicommerce/tasks',
+        name: 'admin-aicommerce-tasks',
+        meta: { title: '任务审计' },
+        component: () => import('@/views/admin/aicommerce/TaskAudit.vue'),
       },
     ],
   },

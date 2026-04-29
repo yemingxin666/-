@@ -14,6 +14,9 @@ import (
 	"geekai/core/types"
 	"geekai/handler"
 	"geekai/handler/admin"
+	handlerAicommerce "geekai/handler/aicommerce"
+	"geekai/service/aicommerce"
+	aicWorker "geekai/service/aicommerce/worker"
 	logger2 "geekai/logger"
 	"geekai/service"
 	"geekai/service/dalle"
@@ -440,6 +443,32 @@ func main() {
 		fx.Provide(handler.NewRealtimeHandler),
 		fx.Invoke(func(s *core.AppServer, h *handler.RealtimeHandler) {
 			h.RegisterRoutes()
+		}),
+
+		// 电商 AI 生图模块
+		fx.Provide(admin.NewAiCommerceHandler),
+		fx.Invoke(func(s *core.AppServer, h *admin.AiCommerceHandler) {
+			h.RegisterRoutes()
+		}),
+		fx.Provide(func(app *core.AppServer, db *gorm.DB, rdb *redis.Client) *handlerAicommerce.ImageHandler {
+			cfg := aicommerce.DefaultConfig()
+			svc := aicommerce.NewImageService(db, rdb, cfg)
+			return handlerAicommerce.NewImageHandler(app, db, svc)
+		}),
+		fx.Invoke(func(s *core.AppServer, h *handlerAicommerce.ImageHandler) {
+			h.RegisterRoutes()
+		}),
+		fx.Provide(func(db *gorm.DB, rdb *redis.Client, mgr *oss.UploaderManager) *aicWorker.Dispatcher {
+			cfg := aicommerce.DefaultConfig()
+			return aicWorker.NewDispatcher(db, rdb, cfg, mgr)
+		}),
+		fx.Invoke(func(lc fx.Lifecycle, d *aicWorker.Dispatcher) {
+			lc.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					go d.Run(context.Background())
+					return nil
+				},
+			})
 		}),
 	)
 	// 启动应用程序
