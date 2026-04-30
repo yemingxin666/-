@@ -41,11 +41,11 @@
             <el-row class="btn-row mt-8" :gutter="20">
               <el-col :span="24">
                 <button
-                  class="w-full h-12 rounded-xl text-base font-medium text-white bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 shadow-md"
+                  class="w-full h-12 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 shadow-md flex items-center justify-center"
                   @click="submitLogin"
                   type="button"
                 >
-                  {{ loading ? '登录中...' : '登 录' }}
+                  {{ loading ? '登录中...' : '立即登录' }}
                 </button>
               </el-col>
             </el-row>
@@ -274,11 +274,11 @@
 
         <div class="w-full">
           <button
-            class="w-full h-12 rounded-xl text-base font-medium text-white bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 shadow-md"
+            class="w-full h-12 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 shadow-md flex items-center justify-center"
             @click="submitRegister"
             type="button"
           >
-            {{ loading ? '注册中...' : '注 册' }}
+            {{ loading ? '注册中...' : '立即注册' }}
           </button>
         </div>
 

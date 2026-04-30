@@ -3,10 +3,12 @@ package aicommerce
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"geekai/service/aicommerce/prompt"
 	"geekai/service/aicommerce/provider"
 	"geekai/store/model"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -14,12 +16,12 @@ import (
 )
 
 type ImageService struct {
-	db         *gorm.DB
-	rdb        *redis.Client
-	cfg        Config
+	db          *gorm.DB
+	rdb         *redis.Client
+	cfg         Config
 	siliconFlow *provider.SiliconFlow
-	tongyi     *provider.Tongyi
-	promptRepo *prompt.Repository
+	tongyi      *provider.Tongyi
+	promptRepo  *prompt.Repository
 }
 
 func NewImageService(db *gorm.DB, rdb *redis.Client, cfg Config) *ImageService {
@@ -42,6 +44,14 @@ const (
 	ModuleRatioConvert = "ratio_convert"
 	ModuleTranslate    = "translate"
 )
+
+type CopywriteReq struct {
+	ProductName string
+	Hint        string
+	AssetNos    []string
+}
+
+const maxCopywriteImageCount = 3
 
 // GenerateReq 生图请求（所有模块共用）
 type GenerateReq struct {
@@ -143,8 +153,144 @@ func (s *ImageService) ListGallery(ctx context.Context, userID uint, module stri
 }
 
 // Copywrite AI 代写卖点
-func (s *ImageService) Copywrite(ctx context.Context, productName, hint string) (string, error) {
-	return s.tongyi.GenerateCopywrite(ctx, productName, hint)
+func (s *ImageService) Copywrite(ctx context.Context, userID uint, req CopywriteReq) (content string, err error) {
+	assetNos := deduplicateAssetNos(req.AssetNos)
+	if len(assetNos) == 0 {
+		return "", fmt.Errorf("请先上传参考图，AI代写需要分析商品图片")
+	}
+	if len(assetNos) > maxCopywriteImageCount {
+		return "", fmt.Errorf("参考图最多支持3张")
+	}
+
+	creditCost, priceErr := s.promptRepo.GetPriceByModel("vision-copywrite")
+	if priceErr != nil || creditCost <= 0 {
+		creditCost = 8
+	}
+	if err = s.deductCredit(ctx, userID, creditCost); err != nil {
+		return "", fmt.Errorf("积分不足: %w", err)
+	}
+
+	defer func() {
+		if err == nil {
+			return
+		}
+		if refundErr := s.refundCredit(context.Background(), userID, creditCost); refundErr != nil {
+			err = fmt.Errorf("%w; 积分退回失败，请联系客服: %v", err, refundErr)
+		}
+	}()
+
+	imageURLs, err := s.resolveCopywriteImageURLs(ctx, userID, assetNos)
+	if err != nil {
+		return "", err
+	}
+
+	visionModel, err := s.resolveCopywriteVisionModel(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	client := provider.NewOpenAIVisionCopywriter(visionModel.ApiEndpoint, visionModel.ApiKey, visionModel.Name)
+	content, err = client.GenerateCopywrite(ctx, req.ProductName, req.Hint, imageURLs)
+	if err != nil {
+		return "", fmt.Errorf("视觉代写失败: %w", err)
+	}
+
+	return content, nil
+}
+
+func deduplicateAssetNos(assetNos []string) []string {
+	seen := make(map[string]struct{}, len(assetNos))
+	result := make([]string, 0, len(assetNos))
+	for _, assetNo := range assetNos {
+		assetNo = strings.TrimSpace(assetNo)
+		if assetNo == "" {
+			continue
+		}
+		if _, ok := seen[assetNo]; ok {
+			continue
+		}
+		seen[assetNo] = struct{}{}
+		result = append(result, assetNo)
+	}
+	return result
+}
+
+func (s *ImageService) resolveCopywriteImageURLs(ctx context.Context, userID uint, assetNos []string) ([]string, error) {
+	urls := make([]string, 0, len(assetNos))
+
+	var dbAssetNos []string
+	for _, assetNo := range assetNos {
+		// Base64 data URL 直接使用，无需查 DB
+		if strings.HasPrefix(assetNo, "data:") {
+			urls = append(urls, assetNo)
+		} else {
+			dbAssetNos = append(dbAssetNos, assetNo)
+		}
+	}
+
+	if len(dbAssetNos) == 0 {
+		return urls, nil
+	}
+
+	var assets []model.AiImageAsset
+	if err := s.db.WithContext(ctx).
+		Where("user_id = ? AND asset_no IN ? AND deleted_at IS NULL", userID, dbAssetNos).
+		Find(&assets).Error; err != nil {
+		return nil, fmt.Errorf("查询参考图失败: %w", err)
+	}
+
+	assetByNo := make(map[string]model.AiImageAsset, len(assets))
+	for _, asset := range assets {
+		assetByNo[asset.AssetNo] = asset
+	}
+
+	for _, assetNo := range dbAssetNos {
+		asset, ok := assetByNo[assetNo]
+		if !ok {
+			return nil, fmt.Errorf("参考图不存在或无权访问: %s", assetNo)
+		}
+
+		key := strings.TrimSpace(asset.OssKey)
+		if key == "" {
+			return nil, fmt.Errorf("参考图 OSS Key 为空: %s", assetNo)
+		}
+
+		if strings.HasPrefix(key, "http://") || strings.HasPrefix(key, "https://") {
+			urls = append(urls, key)
+			continue
+		}
+
+		bucket := strings.TrimSpace(asset.OssBucket)
+		if bucket == "" {
+			bucket = strings.TrimSpace(s.cfg.OSSBucket)
+		}
+		if bucket == "" {
+			return nil, fmt.Errorf("参考图 OSS bucket 未配置")
+		}
+		urls = append(urls, fmt.Sprintf("https://%s.oss-cn-hangzhou.aliyuncs.com/%s", bucket, strings.TrimLeft(key, "/")))
+	}
+
+	return urls, nil
+}
+
+func (s *ImageService) resolveCopywriteVisionModel(ctx context.Context) (*model.AiModel, error) {
+	var m model.AiModel
+	err := s.db.WithContext(ctx).
+		Where("name = ? AND model_type = ? AND status = ?", "gpt-4o", "chat", "active").
+		First(&m).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("未找到可用的视觉模型配置(gpt-4o chat)，请在后台 geekai_ai_models 中配置")
+		}
+		return nil, err
+	}
+	if strings.TrimSpace(m.ApiKey) == "" {
+		return nil, fmt.Errorf("视觉模型 gpt-4o 的 api_key 未配置")
+	}
+	if strings.TrimSpace(m.ApiEndpoint) == "" {
+		return nil, fmt.Errorf("视觉模型 gpt-4o 的 api_endpoint 未配置")
+	}
+	return &m, nil
 }
 
 func (s *ImageService) enqueue(ctx context.Context, taskID uint, taskNo string) error {

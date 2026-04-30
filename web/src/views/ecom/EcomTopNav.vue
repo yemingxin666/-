@@ -1,17 +1,17 @@
 ﻿<template>
   <div class="ecom-topnav">
-    <!-- 宸︿晶锛氬搧鐗?logo + 妯″潡鍥炬爣 tab -->
+    <!-- 左侧：品牌 logo + 模块图标 tab -->
     <div class="nav-left">
       <div class="brand">
         <svg class="brand-svg" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect width="32" height="32" rx="8" fill="#1677ff"/>
           <path d="M8 22L12 10l4 8 4-6 4 8" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        <span class="brand-name">鐢靛晢鐢熷浘</span>
+        <span class="brand-name">电商生图</span>
       </div>
       <div class="divider-v"></div>
 
-      <nav class="module-tabs" role="tablist" aria-label="鐢靛晢鐢熷浘鍔熻兘妯″潡">
+      <nav class="module-tabs" role="tablist" aria-label="电商生图功能模块">
         <div
           v-for="m in modules"
           :key="m.value"
@@ -23,7 +23,7 @@
           :tabindex="activeModule === m.value ? 0 : -1"
           :title="m.label"
         >
-          <!-- SVG 鍥炬爣 -->
+          <!-- SVG 图标 -->
           <span class="tab-icon" aria-hidden="true" v-html="m.svg"></span>
           <span class="tab-label">{{ m.label }}</span>
           <span v-if="activeModule === m.value" class="tab-indicator" aria-hidden="true"></span>
@@ -31,41 +31,42 @@
       </nav>
     </div>
 
-    <!-- 鍙充晶锛氭ā鍨嬮€夋嫨瑙﹀彂鎸夐挳 + 绠楀姏鏄剧ず -->
+    <!-- 右侧：模型选择触发按钮 + 算力显示 -->
     <div class="nav-right">
       <button v-if="showModelSelector" class="model-trigger" @click="showModelDialog = true">
         <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
           <rect x="1" y="3" width="13" height="9" rx="2" stroke="currentColor" stroke-width="1.3"/>
           <path d="M5 7.5h5M7.5 5v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
         </svg>
-        <span class="model-trigger-label">AI妯″瀷</span>
+        <span class="model-trigger-label">AI模型</span>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" class="chevron">
           <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
 
       <div class="credit-display">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" fill="#f90" stroke="#f90"/><text x="7" y="10.5" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">楼</text></svg>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" fill="#f90" stroke="#f90"/><text x="7" y="10.5" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">¥</text></svg>
         <span class="credit-num">{{ store.userPower }}</span>
-        <span class="credit-unit">绠楀姏</span>
+        <span class="credit-unit">算力</span>
       </div>
     </div>
   </div>
 
-  <!-- 妯″瀷閫夋嫨寮圭獥 -->
+  <!-- 模型选择弹窗 -->
   <el-dialog
     v-model="showModelDialog"
-    title="閫夋嫨 AI 妯″瀷"
+    title="选择 AI 模型"
     width="480px"
     :close-on-click-modal="true"
     class="model-dialog"
   >
     <div v-if="modelsLoading" class="model-loading">
       <el-icon class="is-loading"><Loading /></el-icon>
-      <span>鍔犺浇涓?..</span>
+      <span>加载中...</span>
     </div>
     <div v-else-if="!store.filteredModels.length" class="model-empty">
-      鏆傛棤鍙敤妯″瀷锛岃鑱旂郴绠＄悊鍛橀厤缃?    </div>
+      暂无可用模型，请联系管理员配置
+    </div>
     <div v-else class="model-grid">
       <div
         v-for="m in store.filteredModels"
@@ -98,7 +99,7 @@
       </div>
     </div>
     <template #footer>
-      <el-button @click="showModelDialog = false">鍏抽棴</el-button>
+      <el-button @click="showModelDialog = false">关闭</el-button>
     </template>
   </el-dialog>
 </template>
@@ -117,9 +118,9 @@ const modelsLoading = ref(false)
 const showModelSelector = computed(() => props.activeModule !== 'white_bg')
 
 const currentModelLabel = computed(() => {
-  if (modelsLoading.value) return '鍔犺浇涓?..'
+  if (modelsLoading.value) return '加载中...'
   const m = store.filteredModels.find((m) => m.name === store.selectedModel)
-  return m ? m.display_name : '閫夋嫨妯″瀷'
+  return m ? m.display_name : '选择模型'
 })
 
 const selectModel = (name) => {
@@ -191,7 +192,7 @@ const modules = [
   gap: 12px;
 }
 
-/* 鍝佺墝鍖?*/
+/* 品牌区 */
 .brand {
   display: flex;
   align-items: center;
@@ -222,7 +223,7 @@ const modules = [
   flex-shrink: 0;
 }
 
-/* 妯″潡鏍囩 */
+/* 模块标签 */
 .module-tabs {
   display: flex;
   align-items: center;
@@ -291,7 +292,7 @@ const modules = [
   transition: all 0.2s ease;
 }
 
-/* 鍙充晶鎿嶄綔鍖?*/
+/* 右侧操作区 */
 .nav-right {
   display: flex;
   align-items: center;
@@ -326,7 +327,7 @@ const modules = [
 }
 .chevron { opacity: 0.5; flex-shrink: 0; }
 
-/* 寮圭獥鍐呭 */
+/* 弹窗内容 */
 .model-loading, .model-empty {
   display: flex;
   align-items: center;

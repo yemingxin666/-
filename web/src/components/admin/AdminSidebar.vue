@@ -198,6 +198,33 @@ const items = [
     ],
   },
   {
+    icon: 'image',
+    index: 'ecom-group',
+    title: '电商生图',
+    subs: [
+      {
+        icon: 'model',
+        index: '/admin/aicommerce/models',
+        title: 'AI 模型管理',
+      },
+      {
+        icon: 'prompt',
+        index: '/admin/aicommerce/templates',
+        title: 'Prompt 模板',
+      },
+      {
+        icon: 'recharge',
+        index: '/admin/aicommerce/prices',
+        title: '积分定价',
+      },
+      {
+        icon: 'list',
+        index: '/admin/aicommerce/tasks',
+        title: '任务审计',
+      },
+    ],
+  },
+  {
     icon: 'role',
     index: '/admin/manger',
     title: '管理员',

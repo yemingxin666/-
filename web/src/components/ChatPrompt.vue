@@ -329,7 +329,7 @@ const copyContent = (text) => {
   }
 
   .chat-line-prompt-chat {
-    background: var(--chat-bg);
+    background: transparent;
     justify-content: center;
     width: 100%;
     padding-bottom: 1.5rem;
@@ -342,13 +342,14 @@ const copyContent = (text) => {
       flex-flow: row-reverse;
 
       .chat-icon {
-        margin-left: 20px;
+        margin-left: 16px;
 
         img {
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          padding: 1px;
+          width: 38px;
+          height: 38px;
+          border-radius: 12px;
+          padding: 0;
+          box-shadow: var(--shadow-sm);
         }
       }
 
@@ -360,56 +361,58 @@ const copyContent = (text) => {
         .file-list-box {
           display: flex;
           flex-flow: column;
+          align-items: flex-end;
 
           .image {
             display: flex;
             flex-flow: row;
-            margin-right: 10px;
+            margin-bottom: 12px;
             position: relative;
             justify-content: end;
 
             .el-image {
-              border: 1px solid #e3e3e3;
-              border-radius: 10px;
-              margin-bottom: 10px;
-              max-width: 150px;
-              max-height: 150px;
+              border-radius: 12px;
+              box-shadow: var(--shadow-sm);
+              max-width: 200px;
+              max-height: 200px;
+              transition: transform 0.2s;
+              &:hover {
+                transform: scale(1.02);
+              }
             }
           }
 
           .item {
             display: flex;
             flex-flow: row;
-            border-radius: 10px;
-            background-color: var(--chat-content-bg);
-            color: var(--theme-text-color-primary);
-            border: 1px solid #e3e3e3;
-            padding: 6px;
-            margin-bottom: 10px;
+            border-radius: 12px;
+            background-color: var(--gray-btn-bg);
+            color: var(--text-color);
+            border: 1px solid var(--theme-border-primary);
+            padding: 8px 12px;
+            margin-bottom: 12px;
+            width: fit-content;
 
             .icon {
               .el-image {
-                width: 40px;
-                height: 40px;
+                width: 36px;
+                height: 36px;
               }
             }
 
             .body {
-              margin-left: 8px;
-              font-size: 14px;
+              margin-left: 10px;
+              font-size: 13px;
 
               .title {
-                font-weight: bold;
-                line-height: 24px;
-                color: #0d0d0d;
+                font-weight: 600;
+                line-height: 20px;
+                color: var(--text-color);
               }
 
               .info {
-                color: #b4b4b4;
-
-                span {
-                  margin-right: 10px;
-                }
+                color: var(--text-secondary);
+                font-size: 12px;
               }
             }
           }
@@ -421,45 +424,44 @@ const copyContent = (text) => {
 
           .content {
             word-break: break-word;
-            padding: 1rem;
-            color: var(--theme-text-primary);
-            font-size: var(--content-font-size);
+            padding: 12px 16px;
+            color: #fff;
+            font-size: 15px;
+            line-height: 1.6;
             overflow: auto;
-            background-color: var(--chat-user-content-bg);
-            border-radius: 10px 0 10px 10px;
-
-            img {
-              max-width: 600px;
-              border-radius: 10px;
-              margin: 10px 0;
-            }
+            background-color: var(--el-color-primary);
+            border-radius: 18px 2px 18px 18px;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
 
             p {
-              line-height: 1.5;
-            }
-
-            p:last-child {
-              margin-bottom: 0;
-            }
-
-            p:first-child {
-              margin-top: 0;
+              margin: 0;
             }
           }
         }
 
         .bar {
-          padding: 10px 10px 10px 0;
+          padding: 8px 4px;
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
 
           .bar-item {
-            color: #888;
-            padding: 3px 5px;
-            margin-right: 10px;
-            border-radius: 5px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
 
             .el-icon {
-              position: relative;
-              top: 2px;
+              font-size: 14px;
+            }
+            
+            i.iconfont {
+              font-size: 14px;
+              cursor: pointer;
+              &:hover {
+                color: var(--el-color-primary);
+              }
             }
           }
         }

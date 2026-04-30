@@ -545,7 +545,7 @@ const setupCodeBlockEvents = () => {
 
   .chat-line-reply-chat {
     justify-content: center;
-    padding: 1.5rem;
+    padding: 1.5rem 1.5rem;
 
     .chat-line-inner {
       display: flex;
@@ -553,13 +553,14 @@ const setupCodeBlockEvents = () => {
       flex-flow: row;
 
       .chat-icon {
-        margin-right: 20px;
+        margin-right: 16px;
 
         img {
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          padding: 1px;
+          width: 38px;
+          height: 38px;
+          border-radius: 12px;
+          padding: 0;
+          box-shadow: var(--shadow-sm);
         }
       }
 
@@ -575,60 +576,58 @@ const setupCodeBlockEvents = () => {
           .content {
             min-height: 20px;
             word-break: break-word;
-            padding: 1rem;
-            color: var(--theme-text-primary);
-
-            font-size: var(--content-font-size);
+            padding: 12px 16px;
+            color: var(--text-color);
+            line-height: 1.6;
+            font-size: 15px;
             overflow: auto;
-            // background-color #F5F5F5
-            background-color: var(--chat-content-bg);
-            border-radius: 0 10px 10px 10px;
+            background-color: var(--gray-btn-bg);
+            border: 1px solid var(--theme-border-primary);
+            border-radius: 2px 18px 18px 18px;
             width: 100%;
+            box-shadow: var(--shadow-sm);
           }
         }
 
         .bar {
-          padding: 10px 10px 10px 0;
+          padding: 8px 4px;
           display: flex;
+          gap: 12px;
 
           .bar-item {
-            margin-right: 10px;
-            border-radius: 5px;
+            color: var(--text-secondary);
+            font-size: 12px;
             display: flex;
             align-items: center;
-            justify-content: center;
-            height: 26px;
+            gap: 4px;
+            border-radius: 6px;
+            transition: all 0.2s;
 
             .voice-icon {
-              width: 20px;
-              height: 20px;
+              width: 18px;
+              height: 18px;
             }
 
             .el-icon {
-              position: relative;
-              top: 2px;
+              font-size: 14px;
               cursor: pointer;
+              &:hover {
+                color: var(--el-color-primary);
+              }
+            }
+            
+            i.iconfont {
+              font-size: 14px;
+              cursor: pointer;
+              &:hover {
+                color: var(--el-color-primary);
+              }
             }
           }
 
           .bar-item.bg {
-            // background-color var( --gray-btn-bg)
             cursor: pointer;
           }
-
-          .el-button {
-            height: 20px;
-            padding: 5px 2px;
-          }
-        }
-      }
-
-      .tool-box {
-        font-size: 16px;
-
-        .el-button {
-          height: 20px;
-          padding: 5px 2px;
         }
       }
     }

@@ -23,10 +23,26 @@
               placeholder=""
             />
           </div>
-          <button class="copywrite-btn" type="button" @click="copywrite" :disabled="copywriting">
-            <span v-if="copywriting">生成中...</span>
-            <span v-else>AI代写商品卖点</span>
-          </button>
+          <el-tooltip
+            :content="form.reference_assets.length ? '' : '请先上传参考图'"
+            :disabled="form.reference_assets.length > 0"
+            placement="top"
+          >
+            <button
+              class="copywrite-btn"
+              type="button"
+              @click="copywrite"
+              :disabled="copywriting || form.reference_assets.length === 0"
+            >
+              <template v-if="copywriting">
+                <el-icon class="is-loading"><Loading /></el-icon>
+                <span>AI 分析生成中...</span>
+              </template>
+              <template v-else>
+                <span>AI 识别图片并代写卖点</span>
+              </template>
+            </button>
+          </el-tooltip>
         </el-form-item>
 
         <el-form-item>
@@ -119,7 +135,7 @@
 <script setup>
 import { ref, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { httpPost } from '@/utils/http'
+import { Loading } from '@element-plus/icons-vue'
 import { useEcomConfigStore, useEcomTaskStore } from '@/store/ecom'
 import EcomImageUploader from '@/components/ecom/EcomImageUploader.vue'
 import EcomPlatformSelect from '@/components/ecom/EcomPlatformSelect.vue'
@@ -144,11 +160,16 @@ const form = ref({
 const copywriting = ref(false)
 
 const copywrite = async () => {
-  if (!form.value.product_name) { ElMessage.warning('请先输入产品名称'); return }
+  if (!form.value.reference_assets.length) { ElMessage.warning('请先上传参考图'); return }
   copywriting.value = true
   try {
-    const res = await httpPost('/api/ai-commerce/copywrite', { product_name: form.value.product_name, hint: form.value.selling_points })
-    form.value.selling_points = res.data.content
+    const content = await configStore.generateCopywriting(
+      form.value.product_name,
+      form.value.selling_points,
+      form.value.reference_assets
+    )
+    form.value.selling_points = content
+    ElMessage.success('已根据参考图生成卖点')
   } catch (e) {
     ElMessage.error('代写失败：' + e.message)
   } finally {

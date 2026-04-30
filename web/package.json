@@ -43,7 +43,7 @@
     "sortablejs": "^1.15.0",
     "three": "^0.160.0",
     "unplugin-auto-import": "^0.18.5",
-    "vant": "^4.5.0",
+    "vant": "^4.9.24",
     "vue": "^3.2.13",
     "vue-router": "^4.0.15",
     "vue-waterfall-plugin-next": "^2.6.5"

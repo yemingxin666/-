@@ -8,24 +8,6 @@
           <img :src="logo" class="logo" alt="Geek-AI" />
         </div>
         <div class="menu-item">
-          <span v-if="!license || !license.de_copy">
-            <el-tooltip class="box-item" content="部署文档" placement="bottom">
-              <a :href="docsURL" class="link-button mr-3" target="_blank">
-                <i class="iconfont icon-book"></i>
-              </a>
-            </el-tooltip>
-            <el-tooltip class="box-item" content="Github 源码" placement="bottom">
-              <a :href="githubURL" class="link-button mr-3" target="_blank">
-                <i class="iconfont icon-github"></i>
-              </a>
-            </el-tooltip>
-            <el-tooltip class="box-item" content="Gitee 源码" placement="bottom">
-              <a :href="giteeURL" class="link-button" target="_blank">
-                <i class="iconfont icon-gitee"></i>
-              </a>
-            </el-tooltip>
-          </span>
-
           <span v-if="!isLogin">
             <el-button
               @click="router.push('/login')"
@@ -47,13 +29,15 @@
       </el-menu>
     </div>
     <div class="content">
-      <div style="height: 158px"></div>
-      <h1 class="animate__animated animate__backInDown">
+      <h1 class="animate__animated animate__fadeInDown">
         {{ title }}
       </h1>
+      <p class="subtitle animate__animated animate__fadeInUp animate__delay-1s" v-if="title">
+        开启您的 AI 智能创作之旅
+      </p>
 
-      <div class="navs animate__animated animate__backInDown">
-        <el-space wrap :size="14">
+      <div class="navs animate__animated animate__fadeInUp animate__delay-1s">
+        <el-space wrap :size="24">
           <div
             v-for="item in navs"
             :key="item.url"

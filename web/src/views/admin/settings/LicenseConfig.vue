@@ -41,7 +41,7 @@
           </template>
           <el-icon class="selected" v-if="license.configs?.de_copy"><Select /></el-icon>
           <el-icon class="closed" v-else><CloseBold /></el-icon>
-          <span class="text">去版权之后前端页面将不会显示版权信息和源码地址</span>
+          <span class="text">去版权之后前端页面将不会显示版权信息</span>
         </el-descriptions-item>
       </el-descriptions>
 

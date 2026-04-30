@@ -1,12 +1,15 @@
 package aicommerce
 
 import (
+	"encoding/base64"
+	"fmt"
 	"geekai/core"
 	"geekai/core/middleware"
 	"geekai/core/types"
 	"geekai/service/aicommerce"
 	"geekai/store/model"
 	"geekai/utils/resp"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -73,15 +76,46 @@ func (h *ImageHandler) GenerateImage(module string) gin.HandlerFunc {
 	}
 }
 
-// UploadAsset 上传参考图片
+// UploadAsset 上传参考图片，转为 Base64 data URL 返回，不落盘不存 DB
 func (h *ImageHandler) UploadAsset(c *gin.Context) {
 	userID := h.getLoginUserID(c)
 	if userID == 0 {
 		resp.ERROR(c, "未登录")
 		return
 	}
-	// 简化实现：实际需集成 GeeKAI 现有 OSS 上传逻辑
-	resp.SUCCESS(c, gin.H{"asset_no": "todo", "message": "接入 GeeKAI OSS uploader"})
+
+	fh, err := c.FormFile("file")
+	if err != nil {
+		resp.ERROR(c, "读取文件失败: "+err.Error())
+		return
+	}
+
+	const maxSize = 10 << 20 // 10MB
+	if fh.Size > maxSize {
+		resp.ERROR(c, "图片大小不能超过 10MB")
+		return
+	}
+
+	src, err := fh.Open()
+	if err != nil {
+		resp.ERROR(c, "打开文件失败: "+err.Error())
+		return
+	}
+	defer src.Close()
+
+	data, err := io.ReadAll(io.LimitReader(src, maxSize))
+	if err != nil {
+		resp.ERROR(c, "读取文件内容失败: "+err.Error())
+		return
+	}
+
+	mime := fh.Header.Get("Content-Type")
+	if mime == "" {
+		mime = "image/jpeg"
+	}
+	dataURL := fmt.Sprintf("data:%s;base64,%s", mime, base64.StdEncoding.EncodeToString(data))
+
+	resp.SUCCESS(c, gin.H{"asset_no": dataURL})
 }
 
 // GetTask 轮询任务状态

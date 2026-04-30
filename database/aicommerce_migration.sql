@@ -101,6 +101,9 @@ INSERT IGNORE INTO `geekai_ai_model_price_config` (`model`, `module`, `credit_pe
 ('rembg',     'white_bg',        5, '背景移除（白底图）'),
 ('translate', 'translate',       8, '图文翻译');
 
+INSERT IGNORE INTO `geekai_ai_model_price_config` (`model`, `module`, `credit_per_image`, `description`) VALUES
+('vision-copywrite', 'copywrite', 8, 'AI代写商品卖点（图片分析，必须上传参考图）');
+
 -- Task 1.5: AI 模型配置表
 CREATE TABLE IF NOT EXISTS `geekai_ai_models` (
   `id`           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

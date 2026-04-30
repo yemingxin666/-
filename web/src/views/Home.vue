@@ -82,12 +82,6 @@
                     <span class="username title">账户信息</span>
                   </div>
                 </li>
-                <li v-if="!license.de_copy">
-                  <a :href="githubURL" target="_blank" class="flex">
-                    <i class="iconfont icon-github"></i>
-                    <span class="title">项目源码</span>
-                  </a>
-                </li>
                 <li>
                   <a @click="logout" class="flex">
                     <i class="iconfont icon-logout"></i>

@@ -44,7 +44,7 @@ services:
     ports:
       - '9999:9998'
 
-  # 后端 API 程序
+  # 后端 API 程序（含电商生图 Worker 协程）
   geekai-api:
     image: registry.cn-shenzhen.aliyuncs.com/geekmaster/geekai-api:v4.2.4-amd64
     container_name: geekai-api
@@ -58,6 +58,31 @@ services:
       - DEBUG=false
       - LOG_LEVEL=info
       - CONFIG_FILE=config.toml
+      # ── 电商生图模块环境变量 ──────────────────────────────────────
+      # SiliconFlow 文生图 / 图生图
+      - SILICON_FLOW_BASE_URL=https://api.siliconflow.cn/v1
+      - SILICON_FLOW_API_KEY=${SILICON_FLOW_API_KEY}
+      - SILICON_FLOW_MODEL=Kwai-Kolors/Kolors
+      # 通义千问 卖点代写
+      - TONGYI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+      - TONGYI_API_KEY=${TONGYI_API_KEY}
+      - TONGYI_MODEL=qwen-turbo
+      # 百度 OCR
+      - BAIDU_OCR_APP_ID=${BAIDU_OCR_APP_ID}
+      - BAIDU_OCR_API_KEY=${BAIDU_OCR_API_KEY}
+      - BAIDU_OCR_SECRET_KEY=${BAIDU_OCR_SECRET_KEY}
+      # 百度翻译
+      - BAIDU_TRANSLATE_APP_ID=${BAIDU_TRANSLATE_APP_ID}
+      - BAIDU_TRANSLATE_SECRET=${BAIDU_TRANSLATE_SECRET}
+      # 阿里云视觉（背景移除）
+      - ALIYUN_VISION_ACCESS_KEY_ID=${ALIYUN_VISION_ACCESS_KEY_ID}
+      - ALIYUN_VISION_ACCESS_KEY_SECRET=${ALIYUN_VISION_ACCESS_KEY_SECRET}
+      # Redis 任务队列
+      - AI_COMMERCE_QUEUE_NAME=ai_commerce_tasks
+      - AI_COMMERCE_WORKER_CONCURRENCY=3
+      # OSS（使用 GeeKAI 现有 OSS 配置，填写 Bucket 名称）
+      - AI_COMMERCE_OSS_BUCKET=${OSS_BUCKET}
+      - AI_COMMERCE_ASSET_URL_TTL=3600
     ports:
       - '5678:5678'
     volumes:
