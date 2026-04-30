@@ -5,8 +5,6 @@ import { httpGet, httpPost } from '@/utils/http'
 import { checkSession } from '@/store/cache'
 
 const MODULE_CAPS = {
-  main_image: 'text2img',
-  detail_page: 'text2img',
   clone: 'img2img',
   ratio_convert: 'img2img',
 }
@@ -113,7 +111,18 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
     userPower.value = Math.max(0, userPower.value - amount)
   }
 
-  return { userPower, platforms, ratios, mainImageTypes, detailPageTypes, aiModels, activeModule, filteredModels, selectedModel, setSelectedModel, loadUserPower, loadModels, deductPower }
+
+  const generateCopywriting = async (productName, hint, assetNos) => {
+    const res = await httpPost('/api/ai-commerce/copywrite', {
+      product_name: productName,
+      hint: hint,
+      reference_assets: (assetNos || []).slice(0, 3)
+    })
+    if (res.code !== 200) throw new Error(res.message || '生成失败')
+    return res.data.content
+  }
+
+  return { userPower, platforms, ratios, mainImageTypes, detailPageTypes, aiModels, activeModule, filteredModels, selectedModel, setSelectedModel, loadUserPower, loadModels, deductPower, generateCopywriting }
 })
 
 export const useEcomTaskStore = defineStore('ecomTask', () => {

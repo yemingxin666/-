@@ -3,6 +3,7 @@ package aicommerce
 import (
 	"geekai/core"
 	"geekai/core/middleware"
+	"geekai/core/types"
 	"geekai/service/aicommerce"
 	"geekai/store/model"
 	"geekai/utils/resp"
@@ -184,17 +185,30 @@ func (h *ImageHandler) Copywrite(c *gin.Context) {
 		resp.ERROR(c, "未登录")
 		return
 	}
+
 	var body struct {
-		ProductName string `json:"product_name"`
-		Hint        string `json:"hint"`
+		ProductName     string   `json:"product_name"`
+		Hint            string   `json:"hint"`
+		AssetNos        []string `json:"asset_nos"`
+		ReferenceAssets []string `json:"reference_assets"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		resp.ERROR(c, "参数错误")
 		return
 	}
-	result, err := h.service.Copywrite(c.Request.Context(), body.ProductName, body.Hint)
+
+	assetNos := body.AssetNos
+	if len(assetNos) == 0 {
+		assetNos = body.ReferenceAssets
+	}
+
+	result, err := h.service.Copywrite(c.Request.Context(), userID, aicommerce.CopywriteReq{
+		ProductName: body.ProductName,
+		Hint:        body.Hint,
+		AssetNos:    assetNos,
+	})
 	if err != nil {
-		resp.ERROR(c, "代写失败: "+err.Error())
+		resp.ERROR(c, err.Error())
 		return
 	}
 	resp.SUCCESS(c, gin.H{"content": result})
@@ -234,7 +248,7 @@ func (h *ImageHandler) ListModels(c *gin.Context) {
 }
 
 func (h *ImageHandler) getLoginUserID(c *gin.Context) uint {
-	v, exists := c.Get("LoginUserId")
+	v, exists := c.Get(types.LoginUserID)
 	if !exists {
 		return 0
 	}

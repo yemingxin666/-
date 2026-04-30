@@ -46,8 +46,7 @@ type chatResp struct {
 
 // GenerateCopywrite 根据商品品类和核心描述生成结构化卖点文案
 func (t *Tongyi) GenerateCopywrite(ctx context.Context, productName, hint string) (string, error) {
-	systemPrompt := `你是一位专业的电商文案撰写师。
-请根据用户提供的商品信息，生成结构化的商品卖点文案，格式如下：
+	systemPrompt := `你是专业的电商文案撰写师。严格按以下格式输出，不得添加任何额外内容、前言或总结：
 【商品品类】xxx
 【核心卖点】xxx
 【补充描述】xxx
