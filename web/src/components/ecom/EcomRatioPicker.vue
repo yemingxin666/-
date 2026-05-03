@@ -4,11 +4,12 @@
       v-for="r in ratios"
       :key="r.value"
       class="ratio-btn"
-      :class="{ active: modelValue === r.value }"
+      :class="{ active: modelValue === r.value, recommended: recommended === r.value }"
       @click="emit('update:modelValue', r.value)"
       type="button"
     >
-      {{ r.label }}
+      <span class="ratio-label">{{ r.label }}</span>
+      <span v-if="recommended === r.value" class="recommend-badge">推荐</span>
     </button>
   </div>
 </template>
@@ -18,7 +19,10 @@ import { useEcomConfigStore } from '@/store/ecom'
 const store = useEcomConfigStore()
 const ratios = store.ratios
 
-defineProps({ modelValue: { type: String, default: '1:1' } })
+defineProps({ 
+  modelValue: { type: String, default: '1:1' },
+  recommended: { type: String, default: '' }
+})
 const emit = defineEmits(['update:modelValue'])
 </script>
 
@@ -27,31 +31,52 @@ const emit = defineEmits(['update:modelValue'])
 .ratio-picker {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
+  gap: 8px;
   width: 100%;
 }
 .ratio-btn {
-  padding: 6px 0;
-  font-size: 12px;
+  position: relative;
+  padding: 8px 0;
+  font-size: 13px;
   text-align: center;
-  color: #595959;
-  background: #f5f5f5;
-  border: 1px solid #e8e8e8;
-  border-radius: 4px;
+  color: var(--text-color);
+  background: var(--gray-btn-bg);
+  border: 1px solid var(--theme-border-primary);
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.18s;
+  transition: all 0.2s;
   line-height: 1.3;
   white-space: nowrap;
 }
 .ratio-btn:hover {
-  border-color: #1677ff;
-  color: #1677ff;
-  background: #f0f5ff;
+  border-color: var(--el-color-primary-light-3);
+  color: var(--el-color-primary);
+  background: var(--theme-bg);
 }
 .ratio-btn.active {
-  background: #1677ff;
-  border-color: #1677ff;
+  background: var(--el-color-primary);
+  border-color: var(--el-color-primary);
   color: #fff;
   font-weight: 600;
+}
+
+.recommend-badge {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  background: #ff4d4f;
+  color: #fff;
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 4px;
+  line-height: 1.4;
+  transform: scale(0.85);
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ratio-btn.recommended:not(.active) {
+  border-color: #ff4d4f66;
 }
 </style>

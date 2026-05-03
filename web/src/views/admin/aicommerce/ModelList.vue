@@ -9,17 +9,22 @@
       <el-table-column prop="name" label="模型标识" width="160" />
       <el-table-column prop="display_name" label="显示名称" width="160" />
       <el-table-column prop="provider" label="提供商" width="120" />
-      <el-table-column prop="model_type" label="类型" width="90">
+      <el-table-column prop="model_type" label="类型" width="110">
         <template #default="scope">
-          <el-tag type="info">{{ modelTypeLabel(scope.row.model_type) }}</el-tag>
+          <el-tag :type="scope.row.model_type === 'chat' ? 'primary' : scope.row.model_type === 'image' ? 'warning' : 'info'">
+            {{ modelTypeLabel(scope.row.model_type) }}
+          </el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="api_endpoint" label="API 地址" show-overflow-tooltip />
       <el-table-column prop="description" label="描述" show-overflow-tooltip />
       <el-table-column prop="capabilities" label="能力" width="140">
         <template #default="scope">
-          <el-tag v-if="scope.row.capabilities?.includes('text2img')" size="small" type="success" style="margin-right:4px">文生图</el-tag>
-          <el-tag v-if="scope.row.capabilities?.includes('img2img')" size="small" type="warning">图生图</el-tag>
+          <el-tag v-if="scope.row.model_type === 'chat'" size="small" type="primary">视觉理解</el-tag>
+          <template v-else>
+            <el-tag v-if="scope.row.capabilities?.includes('text2img')" size="small" type="success" style="margin-right:4px">文生图</el-tag>
+            <el-tag v-if="scope.row.capabilities?.includes('img2img')" size="small" type="warning">图生图</el-tag>
+          </template>
         </template>
       </el-table-column>
       <el-table-column prop="status" label="状态" width="90">
@@ -60,6 +65,7 @@
         <el-form-item label="模型类型">
           <el-select v-model="item.model_type" style="width:100%">
             <el-option value="image" label="图像生成" />
+            <el-option value="chat" label="对话/视觉 (chat)" />
             <el-option value="text" label="文本生成" />
             <el-option value="video" label="视频生成" />
           </el-select>
@@ -113,7 +119,7 @@ const rules = {
 }
 
 const modelTypeLabel = (type) => {
-  const map = { image: '图像', text: '文本', video: '视频' }
+  const map = { image: '图像', chat: '对话/视觉', text: '文本', video: '视频' }
   return map[type] || type
 }
 

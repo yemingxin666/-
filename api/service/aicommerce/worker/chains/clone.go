@@ -43,7 +43,7 @@ func RunClone(
 	// 构建风格迁移 Prompt
 	stylePrompt := fmt.Sprintf(
 		"E-commerce product image, %s, %s, selling points: %s, %s style, high quality, professional photography",
-		productName, prompt.PlatformRules(task.Platform), sellingPoints, styleDesc,
+		productName, prompt.PlatformRules(db, task.Platform), sellingPoints, styleDesc,
 	)
 
 	genReq := provider.ImageToImageReq{

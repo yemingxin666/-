@@ -1,52 +1,102 @@
 package prompt
 
-// PlatformRules 返回各平台的风格规则描述，注入 Prompt 模板
-func PlatformRules(platform string) string {
-	rules := map[string]string{
-		"taobao":   "淘宝平台风格：色彩鲜艳、信息密集、突出促销信息、中文排版清晰",
-		"tmall":    "天猫平台风格：品质感强、简洁大气、突出品牌调性",
-		"jd":       "京东平台风格：科技感、蓝色系、突出品质与服务",
-		"pinduoduo": "拼多多平台风格：价格醒目、红色系、强调性价比",
-		"tiktok":   "抖音平台风格：视觉冲击强、竖版构图、适合短视频封面",
-		"xiaohongshu": "小红书平台风格：生活感强、清新自然、适合种草内容",
-		"amazon":   "Amazon style: clean white background, professional product photography, no text overlay on main image",
-		"shopee":   "Shopee style: bright colors, mobile-first layout, Southeast Asia market preference",
-		"lazada":   "Lazada style: clean product display, Southeast Asia e-commerce standard",
-		"aliexpress": "AliExpress style: international audience, clear product details, neutral background",
-		"generic":  "通用电商风格：商品主体清晰，背景简洁，光线均匀",
+import (
+	"geekai/store/model"
+	"sync"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+const platformRulesCacheTTL = 5 * time.Minute
+
+type platformCacheItem struct {
+	style     string
+	expiresAt time.Time
+}
+
+var platformRulesCache sync.Map
+
+// PlatformRules 返回各平台的风格规则描述，注入 Prompt 模板（带 5 分钟内存缓存）
+func PlatformRules(db *gorm.DB, platform string) string {
+	if platform == "" {
+		platform = "generic"
 	}
-	if r, ok := rules[platform]; ok {
-		return r
+	if v, ok := platformRulesCache.Load(platform); ok {
+		item := v.(platformCacheItem)
+		if time.Now().Before(item.expiresAt) {
+			return item.style
+		}
+		platformRulesCache.Delete(platform)
 	}
-	return rules["generic"]
+	style := resolvePlatformStyle(db, platform)
+	platformRulesCache.Store(platform, platformCacheItem{style: style, expiresAt: time.Now().Add(platformRulesCacheTTL)})
+	return style
+}
+
+func resolvePlatformStyle(db *gorm.DB, platform string) string {
+	if db != nil {
+		if cfg, err := FindPlatformConfig(db, platform, true); err == nil && cfg.PromptStyle != "" {
+			return cfg.PromptStyle
+		}
+		if cfg, err := FindPlatformConfig(db, "generic", true); err == nil && cfg.PromptStyle != "" {
+			return cfg.PromptStyle
+		}
+	}
+	return "通用电商风格：商品主体清晰，背景简洁，光线均衡"
+}
+
+// FindPlatformConfig 查询平台配置
+func FindPlatformConfig(db *gorm.DB, value string, activeOnly bool) (*model.AiPlatformConfig, error) {
+	var cfg model.AiPlatformConfig
+	q := db.Where("value = ?", value)
+	if activeOnly {
+		q = q.Where("status = ?", model.PlatformStatusActive)
+	}
+	if err := q.First(&cfg).Error; err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+// ClearPlatformRulesCache 清空缓存（在 Admin 更新配置后调用）
+func ClearPlatformRulesCache() {
+	platformRulesCache.Range(func(k, _ interface{}) bool {
+		platformRulesCache.Delete(k)
+		return true
+	})
 }
 
 // ImageTypeDesc 返回图片类型的中文描述，注入模板
 func ImageTypeDesc(imageType string) string {
 	descs := map[string]string{
 		// 主图类型
-		"引流封面":   "视觉冲击力强的引流封面，吸引用户点击",
-		"核心卖点":   "核心卖点展示图，清晰呈现产品核心优势",
-		"场景代入":   "真实使用场景图，让用户产生代入感",
-		"价值拆解":   "价值拆解图，用图文展示产品价值点",
-		"竞品对比":   "竞品对比图，突出产品差异化优势",
-		"细节展示":   "产品细节特写图，展示品质细节",
-		"效果证明":   "使用效果前后对比图，展示产品效果",
-		"信任消疑":   "信任背书图，展示资质证书、用户好评等",
-		"临门一脚":   "促单图，展示限时优惠、赠品等促销信息",
+		"traffic_cover":        "视觉冲击力强的引流封面，吸引用户点击",
+		"core_selling_point":   "核心卖点展示图，清晰呈现产品核心优势",
+		"scene_immersion":      "真实使用场景图，让用户产生代入感",
+		"value_breakdown":      "价值拆解图，用图文展示产品价值点",
+		"competitor_comparison": "竞品对比图，突出产品差异化优势",
+		"detail_display":       "产品细节特写图，展示品质细节",
+		"effect_proof":         "使用效果前后对比图，展示产品效果",
+		"trust_building":       "信任背书图，展示资质证书、用户好评等",
+		"final_push":           "促单图，展示限时优惠、赠品等促销信息",
 		// 详情页类型
-		"首屏主视觉":    "详情页首屏主视觉，第一眼吸引用户",
-		"核心卖点图":    "核心卖点图文展示",
-		"使用场景图":    "产品使用场景展示",
-		"多角度图":     "产品多角度全面展示",
-		"场景氛围图":    "营造使用氛围的场景图",
-		"商品细节图":    "产品材质和细节特写",
-		"品牌故事图":    "品牌故事和理念展示",
-		"尺寸容量尺码图": "产品尺寸、容量或尺码规格图",
-		"效果对比图":    "使用前后效果对比",
-		"详细规格参数表": "产品详细参数规格表",
-		"工艺制作图":    "产品工艺和制作过程展示",
-		"配件赠品图":    "包装内容和赠品展示",
+		"hero_visual":        "详情页首屏主视觉，第一眼吸引用户",
+		"core_selling":       "核心卖点图文展示",
+		"usage_scene":        "产品使用场景展示",
+		"multi_angle":        "产品多角度全面展示",
+		"atmosphere":         "营造使用氛围的场景图",
+		"product_detail":     "产品材质和细节特写",
+		"brand_story":        "品牌故事和理念展示",
+		"size_capacity":      "产品尺寸、容量或尺码规格图",
+		"effect_comparison":  "使用前后效果对比",
+		"spec_reference":     "产品详细参数规格表",
+		"craft_process":      "产品工艺和制作过程展示",
+		"accessory_gift":     "包装内容和赠品展示",
+		"series_showcase":    "系列产品展示",
+		"ingredient":         "商品成分图",
+		"after_sales":        "售后保障图",
+		"usage_guide":        "使用建议图",
 	}
 	if d, ok := descs[imageType]; ok {
 		return d

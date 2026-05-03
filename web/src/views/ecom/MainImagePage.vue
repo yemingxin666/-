@@ -21,7 +21,7 @@
               v-model="form.selling_points"
               type="textarea"
               :rows="6"
-              placeholder=""
+              placeholder="【商品品类】&#10;&#10;【核心卖点】&#10;&#10;【补充描述】"
             />
           </div>
           <el-tooltip
@@ -29,20 +29,33 @@
             :disabled="form.reference_assets.length > 0"
             placement="top"
           >
-            <button
-              class="copywrite-btn"
-              type="button"
-              @click="copywrite"
-              :disabled="copywriting || form.reference_assets.length === 0"
-            >
-              <template v-if="copywriting">
-                <el-icon class="is-loading"><Loading /></el-icon>
-                <span>AI 分析生成中...</span>
-              </template>
-              <template v-else>
-                <span>AI 识别图片并代写卖点</span>
-              </template>
-            </button>
+            <div class="copywrite-container">
+              <button
+                class="copywrite-btn"
+                type="button"
+                @click="copywrite"
+                :disabled="copywriting || form.reference_assets.length === 0"
+              >
+                <template v-if="copywriting">
+                  <el-icon class="is-loading"><Loading /></el-icon>
+                  <span>AI 分析生成中...</span>
+                </template>
+                <template v-else>
+                  <span>AI 识别图片并代写卖点</span>
+                </template>
+              </button>
+
+              <transition name="fade">
+                <el-progress
+                  v-if="showProgress"
+                  :percentage="percentage"
+                  :stroke-width="4"
+                  :show-text="false"
+                  color="#ed8936"
+                  class="btn-progress"
+                />
+              </transition>
+            </div>
           </el-tooltip>
         </el-form-item>
 
@@ -50,14 +63,14 @@
           <template #label>
             <span class="field-label">图片类型 <em>(要几张选几个)</em></span>
           </template>
-          <EcomTypeChips :types="configStore.mainImageTypes" v-model="selectedTypes" />
+          <EcomTypeChips :types="sortedTypes" v-model="selectedTypes" />
         </el-form-item>
 
         <el-form-item>
           <template #label>
             <span class="field-label">生成比例 <em>(Generation Ratio)</em></span>
           </template>
-          <EcomRatioPicker v-model="form.ratio" />
+          <EcomRatioPicker v-model="form.ratio" :recommended="recommendedRatio" />
         </el-form-item>
 
         <el-form-item>
@@ -79,22 +92,23 @@
 
         <el-form-item>
           <template #label>
+            <span class="field-label">风格特点描述 <em>(Style Description)</em></span>
+          </template>
+          <el-input
+            v-model="form.style_desc"
+            type="textarea"
+            :rows="3"
+            placeholder="描述图片风格，如：简约白底、科技感蓝色调、温暖家居风..."
+          />
+        </el-form-item>
+
+        <el-form-item>
+          <template #label>
             <span class="field-label">参考图片 <em>(最多3张产品白底图)</em></span>
           </template>
           <EcomImageUploader v-model:assetNos="form.reference_assets" :multiple="true" :limit="3" />
         </el-form-item>
 
-        <el-form-item>
-          <template #label>
-            <span class="field-label">风格特点描述 <em>(Style Description)</em></span>
-          </template>
-          <el-input
-            v-model="form.style_description"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入风格特点描述......"
-          />
-        </el-form-item>
 
       </el-form>
     </div>
@@ -102,14 +116,20 @@
     <!-- 底部固定区 -->
     <div class="panel-footer">
       <EcomCreditBadge :estimated-cost="estimatedCost" class="footer-credit" />
-      <button
-        class="submit-btn"
-        type="button"
-        @click="submit"
-        :disabled="taskStore.isRunning"
+      <el-tooltip
+        :content="!form.reference_assets.length ? '请先上传参考图' : ''"
+        :disabled="form.reference_assets.length > 0"
+        placement="top"
       >
-        {{ taskStore.isRunning ? '生成中...' : '立即生成' }}
-      </button>
+        <button
+          class="submit-btn"
+          type="button"
+          @click="submit"
+          :disabled="taskStore.isRunning || !form.reference_assets.length"
+        >
+          {{ taskStore.isRunning ? '生成中...' : '立即生成' }}
+        </button>
+      </el-tooltip>
     </div>
   </aside>
 
@@ -117,17 +137,31 @@
   <section class="result-panel">
     <EcomProgressBar v-if="taskStore.currentTask" />
 
-    <div v-if="taskStore.outputs.length" class="result-grid">
-      <EcomResultCard
-        v-for="(url, i) in taskStore.outputs"
-        :key="i"
-        :url="url"
-        @regenerate="submit"
-        @delete="taskStore.reset()"
-      />
+    <div v-if="taskStore.items.length || taskStore.outputs.length" class="result-grid">
+      <template v-if="taskStore.items.length">
+        <EcomResultCard
+          v-for="item in taskStore.items"
+          :key="item.image_type"
+          :url="item.url"
+          :label="item.label"
+          :status="item.status"
+          :progress="item.progress"
+          @regenerate="submit"
+          @delete="taskStore.reset()"
+        />
+      </template>
+      <template v-else>
+        <EcomResultCard
+          v-for="(url, i) in taskStore.outputs"
+          :key="i"
+          :url="url"
+          @regenerate="submit"
+          @delete="taskStore.reset()"
+        />
+      </template>
     </div>
 
-    <div v-else-if="!taskStore.currentTask" class="result-empty">
+    <div v-else-if="!taskStore.currentTask && !taskStore.items.length && !taskStore.outputs.length" class="result-empty">
       <!-- 对照截图：破损图片 SVG + 文字 -->
       <svg class="empty-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="8" y="14" width="64" height="52" rx="4" stroke="#d9d9d9" stroke-width="2.5"/>
@@ -144,10 +178,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { useEcomConfigStore, useEcomTaskStore } from '@/store/ecom'
+import { useEcomLinkage } from '@/composables/useEcomLinkage'
 import EcomImageUploader from '@/components/ecom/EcomImageUploader.vue'
 import EcomTypeChips from '@/components/ecom/EcomTypeChips.vue'
 import EcomPlatformSelect from '@/components/ecom/EcomPlatformSelect.vue'
@@ -155,39 +190,76 @@ import EcomRatioPicker from '@/components/ecom/EcomRatioPicker.vue'
 import EcomCreditBadge from '@/components/ecom/EcomCreditBadge.vue'
 import EcomProgressBar from '@/components/ecom/EcomProgressBar.vue'
 import EcomResultCard from '@/components/ecom/EcomResultCard.vue'
+import { useCopywriteProgress } from '@/composables/useCopywriteProgress'
+import { formatAnalysisToText, getStyleDesc } from '@/utils/ecomFormat'
 
 const configStore = useEcomConfigStore()
 const taskStore = useEcomTaskStore()
+const { percentage, showProgress, start: startProgress, finish: finishProgress } = useCopywriteProgress()
 
 const form = ref({
   product_name: '',
-  selling_points: '【商品品类】\n\n【核心卖点】\n\n【补充描述】',
-  style_description: '',
-  platform: 'generic',
+  selling_points: '',
+  platform: 'pinduoduo',
   ratio: '1:1',
   language: 'zh-CN',
+  style_desc: '',
   reference_assets: [],
+  analysis: null,
 })
+
+const { recommendedRatio } = useEcomLinkage(form)
+
 const selectedTypes = ref(['traffic_cover'])
 const copywriting = ref(false)
+
+watch(() => form.value.selling_points, () => {
+  if (!copywriting.value) form.value.analysis = null
+})
+
+const sortedTypes = computed(() => {
+  const cfg = configStore.getPlatformConfig(form.value.platform)
+  if (!cfg || !cfg.priority_images) return configStore.mainImageTypes
+
+  const priority = cfg.priority_images
+  const mustHave = priority.must_have || []
+  const recommended = priority.recommended || []
+  const optional = priority.optional || []
+
+  const getScore = (val) => {
+    if (mustHave.includes(val)) return 3
+    if (recommended.includes(val)) return 2
+    if (optional.includes(val)) return 1
+    return 0
+  }
+
+  return [...configStore.mainImageTypes].sort((a, b) => getScore(b.value) - getScore(a.value))
+})
 
 const estimatedCost = computed(() => selectedTypes.value.length * 10)
 
 const copywrite = async () => {
   if (!form.value.reference_assets.length) { ElMessage.warning('请先上传参考图'); return }
   copywriting.value = true
+  startProgress()
   try {
-    const content = await configStore.generateCopywriting(
+    const { content, analysis } = await configStore.generateCopywriting(
       form.value.product_name,
       form.value.selling_points,
       form.value.reference_assets
     )
-    form.value.selling_points = content
+    if (analysis) {
+      if (!form.value.product_name) form.value.product_name = analysis.product_name || ''
+      if (!form.value.style_desc) form.value.style_desc = getStyleDesc(analysis.recommended_style)
+      form.value.analysis = analysis
+    }
+    form.value.selling_points = formatAnalysisToText(analysis, content)
     ElMessage.success('已根据参考图生成卖点')
   } catch (e) {
     ElMessage.error('代写失败：' + e.message)
   } finally {
     copywriting.value = false
+    finishProgress()
   }
 }
 
@@ -204,12 +276,12 @@ const submit = async () => {
       image_type: selectedTypes.value.join(','),
       model: configStore.selectedModel,
     })
-    configStore.deductPower(estimatedCost.value)
   } catch (e) {
     ElMessage.error('提交失败：' + e.message)
   }
 }
 
+onMounted(() => taskStore.resumeIfPending())
 onUnmounted(() => taskStore.stopPolling())
 </script>
 
@@ -283,12 +355,16 @@ onUnmounted(() => taskStore.stopPolling())
 }
 
 /* AI 代写按钮 */
+.copywrite-container {
+  position: relative;
+  width: 100%;
+  margin-top: 10px;
+}
 .copywrite-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  margin-top: 10px;
   padding: 10px 0;
   background: linear-gradient(135deg, #f6ad55, #ed8936);
   border: none;
@@ -306,6 +382,23 @@ onUnmounted(() => taskStore.stopPolling())
     background: linear-gradient(135deg, #ed8936, #dd6b20);
   }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
+}
+
+.btn-progress {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+
+/* 淡出动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 /* 底部固定 */

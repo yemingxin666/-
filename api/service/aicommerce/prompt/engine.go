@@ -10,15 +10,59 @@ import (
 
 // Vars 模板变量集合
 type Vars struct {
-	ProductName        string
-	SellingPoints      string
-	ImageTypeDesc      string
-	Platform           string
-	PlatformRules      string
-	Language           string
-	Ratio              string
-	StyleDesc          string
+	// 基础字段
+	ProductName         string
+	SellingPoints       string
+	ImageTypeDesc       string
+	Platform            string
+	PlatformRules       string
+	Language            string
+	Ratio               string
+	StyleDesc           string
 	ReferenceImageCount int
+
+	// AI 视觉分析扩展字段（来自 CopywriteAnalysis）
+	ProductDescForPrompt string // 英文 Prompt 描述，含颜色/款型/材质等视觉细节
+	ProductType          string // 商品品类
+	GarmentPosition      string // top | bottom | full-body | non-apparel
+	Color                string // 精确英文色值描述
+	Material             string // 主要材质
+	Style                string // 版型描述
+	PrintDesign          string // 印花/设计描述
+	PrintDesignLock      string // 精确约束短语，防止印花变形
+	TargetAudience       string // 目标人群
+	ProductStyle         string // 商品风格
+	ProductNameZh        string // 中文商品名简短版
+
+	// 结构化卖点（最多5条）
+	SP0Zh     string
+	SP0En     string
+	SP0ZhDesc string
+	SP0EnDesc string
+	SP1Zh     string
+	SP1En     string
+	SP1ZhDesc string
+	SP1EnDesc string
+	SP2Zh     string
+	SP2En     string
+	SP2ZhDesc string
+	SP2EnDesc string
+	SP3Zh     string
+	SP3En     string
+	SP3ZhDesc string
+	SP3EnDesc string
+	SP4Zh     string
+	SP4En     string
+	SP4ZhDesc string
+	SP4EnDesc string
+
+	// 目标使用场景（最多3条，中英双语，用于场景代入图/多场景拼图）
+	Scene0Zh string
+	Scene0En string
+	Scene1Zh string
+	Scene1En string
+	Scene2Zh string
+	Scene2En string
 }
 
 // RenderResult 渲染结果
@@ -53,15 +97,56 @@ func Render(tmplText, negativeTmpl string, vars Vars) (*RenderResult, error) {
 func renderOne(tmplText string, vars Vars) (string, error) {
 	// 对用户输入进行 HTML 转义，防止模板注入
 	safeVars := Vars{
+		// 基础字段
 		ProductName:         html.EscapeString(vars.ProductName),
 		SellingPoints:       html.EscapeString(vars.SellingPoints),
-		ImageTypeDesc:       vars.ImageTypeDesc,       // 系统控制，无需转义
+		ImageTypeDesc:       vars.ImageTypeDesc,
 		Platform:            vars.Platform,
 		PlatformRules:       vars.PlatformRules,
 		Language:            vars.Language,
 		Ratio:               vars.Ratio,
 		StyleDesc:           html.EscapeString(vars.StyleDesc),
 		ReferenceImageCount: vars.ReferenceImageCount,
+		// AI 视觉分析扩展字段（用户间接来源，需转义）
+		ProductDescForPrompt: html.EscapeString(vars.ProductDescForPrompt),
+		ProductType:          html.EscapeString(vars.ProductType),
+		GarmentPosition:      html.EscapeString(vars.GarmentPosition),
+		Color:                html.EscapeString(vars.Color),
+		Material:             html.EscapeString(vars.Material),
+		Style:                html.EscapeString(vars.Style),
+		PrintDesign:          html.EscapeString(vars.PrintDesign),
+		PrintDesignLock:      html.EscapeString(vars.PrintDesignLock),
+		TargetAudience:       html.EscapeString(vars.TargetAudience),
+		ProductStyle:         html.EscapeString(vars.ProductStyle),
+		ProductNameZh:        html.EscapeString(vars.ProductNameZh),
+		// 结构化卖点
+		SP0Zh:     html.EscapeString(vars.SP0Zh),
+		SP0En:     html.EscapeString(vars.SP0En),
+		SP0ZhDesc: html.EscapeString(vars.SP0ZhDesc),
+		SP0EnDesc: html.EscapeString(vars.SP0EnDesc),
+		SP1Zh:     html.EscapeString(vars.SP1Zh),
+		SP1En:     html.EscapeString(vars.SP1En),
+		SP1ZhDesc: html.EscapeString(vars.SP1ZhDesc),
+		SP1EnDesc: html.EscapeString(vars.SP1EnDesc),
+		SP2Zh:     html.EscapeString(vars.SP2Zh),
+		SP2En:     html.EscapeString(vars.SP2En),
+		SP2ZhDesc: html.EscapeString(vars.SP2ZhDesc),
+		SP2EnDesc: html.EscapeString(vars.SP2EnDesc),
+		SP3Zh:     html.EscapeString(vars.SP3Zh),
+		SP3En:     html.EscapeString(vars.SP3En),
+		SP3ZhDesc: html.EscapeString(vars.SP3ZhDesc),
+		SP3EnDesc: html.EscapeString(vars.SP3EnDesc),
+		SP4Zh:     html.EscapeString(vars.SP4Zh),
+		SP4En:     html.EscapeString(vars.SP4En),
+		SP4ZhDesc: html.EscapeString(vars.SP4ZhDesc),
+		SP4EnDesc: html.EscapeString(vars.SP4EnDesc),
+		// 目标使用场景
+		Scene0Zh: html.EscapeString(vars.Scene0Zh),
+		Scene0En: html.EscapeString(vars.Scene0En),
+		Scene1Zh: html.EscapeString(vars.Scene1Zh),
+		Scene1En: html.EscapeString(vars.Scene1En),
+		Scene2Zh: html.EscapeString(vars.Scene2Zh),
+		Scene2En: html.EscapeString(vars.Scene2En),
 	}
 	t, err := template.New("prompt").Parse(tmplText)
 	if err != nil {

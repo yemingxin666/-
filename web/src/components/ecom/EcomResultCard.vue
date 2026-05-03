@@ -1,31 +1,68 @@
 <template>
-  <div class="result-card">
+  <div class="result-card" :class="{ 'is-failed': status === 'failed' }">
     <div class="card-image-wrap">
-      <el-image :src="url" fit="cover" class="result-img" :preview-src-list="[url]" preview-teleported />
-      <!-- hover overlay 操作层 -->
-      <div class="card-overlay">
-        <el-button circle @click="download" title="下载">
-          <el-icon><Download /></el-icon>
-        </el-button>
-        <el-button circle @click="emit('regenerate')" title="重新生成">
-          <el-icon><Refresh /></el-icon>
-        </el-button>
-        <el-popconfirm title="确定删除？" @confirm="emit('delete')">
-          <template #reference>
-            <el-button circle type="danger" title="删除">
-              <el-icon><Delete /></el-icon>
-            </el-button>
-          </template>
-        </el-popconfirm>
+
+      <!-- 成功：显示图片 + 标签徽章 + 操作覆盖层 -->
+      <template v-if="url && status !== 'failed'">
+        <el-image :src="url" fit="cover" class="result-img" :preview-src-list="[url]" preview-teleported />
+        <div v-if="label" class="label-badge">{{ label }}</div>
+        <div class="card-overlay">
+          <el-button circle @click="download" title="下载">
+            <el-icon><Download /></el-icon>
+          </el-button>
+          <el-button circle @click="emit('regenerate')" title="重新生成">
+            <el-icon><Refresh /></el-icon>
+          </el-button>
+          <el-popconfirm title="确定删除？" @confirm="emit('delete')">
+            <template #reference>
+              <el-button circle type="danger" title="删除">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </template>
+          </el-popconfirm>
+        </div>
+      </template>
+
+      <!-- 失败态 -->
+      <div v-else-if="status === 'failed'" class="error-card">
+        <el-icon class="error-icon"><CircleCloseFilled /></el-icon>
+        <div class="error-label">{{ label || '生成失败' }}</div>
+        <el-button size="small" @click="emit('regenerate')" class="retry-btn">重试</el-button>
       </div>
+
+      <!-- 加载态：pending / running -->
+      <div v-else class="skeleton-card">
+        <el-skeleton :loading="true" animated>
+          <template #template>
+            <el-skeleton-item variant="image" class="skeleton-img" />
+          </template>
+        </el-skeleton>
+        <div class="skeleton-info">
+          <div class="skeleton-label">{{ label || '生成中...' }}</div>
+          <el-progress
+            v-if="status === 'running' && progress > 0"
+            :percentage="progress"
+            :stroke-width="3"
+            :show-text="false"
+            class="skeleton-progress"
+          />
+          <div v-else class="skeleton-phase">{{ status === 'running' ? '生图中...' : '排队中...' }}</div>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
 
 <script setup>
-import { Download, Refresh, Delete } from '@element-plus/icons-vue'
+import { Download, Refresh, Delete, CircleCloseFilled } from '@element-plus/icons-vue'
 
-const props = defineProps({ url: { type: String, required: true } })
+const props = defineProps({
+  url: { type: String, default: null },
+  label: { type: String, default: '' },
+  status: { type: String, default: 'succeeded' },
+  progress: { type: Number, default: 0 },
+})
 const emit = defineEmits(['regenerate', 'delete'])
 
 const download = () => {
@@ -53,6 +90,9 @@ const download = () => {
   transform: translateY(-4px);
   border-color: var(--el-color-primary-light-5);
 }
+.result-card.is-failed {
+  border-color: var(--el-color-danger-light-5);
+}
 
 .card-image-wrap {
   position: relative;
@@ -67,6 +107,19 @@ const download = () => {
 }
 .result-card:hover .result-img {
   transform: scale(1.05);
+}
+
+.label-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .card-overlay {
@@ -93,12 +146,74 @@ const download = () => {
   border: none;
   color: #333;
   transition: all 0.2s;
-  
+
   &:hover {
     transform: scale(1.1);
     background: #fff;
     color: var(--el-color-primary);
   }
+}
+
+/* 加载态 */
+.skeleton-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+.skeleton-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.skeleton-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 12px 12px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.5));
+}
+.skeleton-label {
+  font-size: 13px;
+  color: #fff;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.skeleton-progress {
+  width: 100%;
+}
+:deep(.skeleton-progress .el-progress-bar__outer) {
+  background: rgba(255, 255, 255, 0.3);
+}
+.skeleton-phase {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* 失败态 */
+.error-card {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--gray-btn-bg);
+  padding: 16px;
+}
+.error-icon {
+  font-size: 36px;
+  color: var(--el-color-danger);
+}
+.error-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+.retry-btn {
+  margin-top: 4px;
 }
 
 .result-card { will-change: transform; }

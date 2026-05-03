@@ -384,6 +384,12 @@ const routes = [
         meta: { title: '任务审计' },
         component: () => import('@/views/admin/aicommerce/TaskAudit.vue'),
       },
+      {
+        path: '/admin/aicommerce/platforms',
+        name: 'admin-aicommerce-platforms',
+        meta: { title: '平台规范管理' },
+        component: () => import('@/views/admin/aicommerce/PlatformList.vue'),
+      },
     ],
   },
 

@@ -44,6 +44,7 @@ func (h *ImageHandler) RegisterRoutes() {
 		group.GET("/gallery", h.Gallery)
 		group.POST("/copywrite", h.Copywrite)
 		group.GET("/models", h.ListModels)
+		group.GET("/platform-configs", h.ListPlatformConfigs)
 	}
 }
 
@@ -123,24 +124,20 @@ func (h *ImageHandler) GetTask(c *gin.Context) {
 	userID := h.getLoginUserID(c)
 	taskNo := c.Param("task_no")
 
-	task, assets, err := h.service.GetTask(c.Request.Context(), userID, taskNo)
+	result, err := h.service.GetTask(c.Request.Context(), userID, taskNo)
 	if err != nil {
 		resp.ERROR(c, "任务不存在")
 		return
 	}
 
-	assetURLs := make([]string, 0, len(assets))
-	for _, a := range assets {
-		assetURLs = append(assetURLs, a.OssKey)
-	}
-
 	resp.SUCCESS(c, gin.H{
-		"task_no":  task.TaskNo,
-		"module":   task.Module,
-		"status":   task.Status,
-		"progress": task.Progress,
-		"outputs":  assetURLs,
-		"error":    task.ErrorMessage,
+		"task_no":  result.Task.TaskNo,
+		"module":   result.Task.Module,
+		"status":   result.Task.Status,
+		"progress": result.Progress,
+		"outputs":  result.Outputs,
+		"items":    result.Items,
+		"error":    result.Task.ErrorMessage,
 	})
 }
 
@@ -150,7 +147,7 @@ func (h *ImageHandler) TaskEvents(c *gin.Context) {
 	taskNo := c.Param("task_no")
 
 	// 验证任务归属
-	if _, _, err := h.service.GetTask(c.Request.Context(), userID, taskNo); err != nil {
+	if _, err := h.service.GetTask(c.Request.Context(), userID, taskNo); err != nil {
 		c.Status(http.StatusNotFound)
 		return
 	}
@@ -236,7 +233,7 @@ func (h *ImageHandler) Copywrite(c *gin.Context) {
 		assetNos = body.ReferenceAssets
 	}
 
-	result, err := h.service.Copywrite(c.Request.Context(), userID, aicommerce.CopywriteReq{
+	content, analysis, err := h.service.Copywrite(c.Request.Context(), userID, aicommerce.CopywriteReq{
 		ProductName: body.ProductName,
 		Hint:        body.Hint,
 		AssetNos:    assetNos,
@@ -245,7 +242,7 @@ func (h *ImageHandler) Copywrite(c *gin.Context) {
 		resp.ERROR(c, err.Error())
 		return
 	}
-	resp.SUCCESS(c, gin.H{"content": result})
+	resp.SUCCESS(c, gin.H{"content": content, "analysis": analysis})
 }
 
 // ListModels 返回启用的 AI 模型列表（供用户端选择，不含 ApiKey）
@@ -279,6 +276,38 @@ func (h *ImageHandler) ListModels(c *gin.Context) {
 		})
 	}
 	resp.SUCCESS(c, result)
+}
+
+// ListPlatformConfigs 返回启用的平台配置列表（供用户端动态加载）
+func (h *ImageHandler) ListPlatformConfigs(c *gin.Context) {
+	var items []model.AiPlatformConfig
+	if err := h.db.Where("status = ?", model.PlatformStatusActive).
+		Order("sort_order ASC, id ASC").Find(&items).Error; err != nil {
+		resp.ERROR(c, err.Error())
+		return
+	}
+	type publicConfig struct {
+		Value           string        `json:"value"`
+		Label           string        `json:"label"`
+		DefaultLanguage string        `json:"default_language"`
+		DefaultRatio    string        `json:"default_ratio"`
+		PriorityImages  model.JSONMap `json:"priority_images"`
+		Constraints     model.JSONMap `json:"constraints"`
+		SortOrder       int           `json:"sort_order"`
+	}
+	result := make([]publicConfig, 0, len(items))
+	for _, item := range items {
+		result = append(result, publicConfig{
+			Value:           item.Value,
+			Label:           item.Label,
+			DefaultLanguage: item.DefaultLanguage,
+			DefaultRatio:    item.DefaultRatio,
+			PriorityImages:  item.PriorityImages,
+			Constraints:     item.Constraints,
+			SortOrder:       item.SortOrder,
+		})
+	}
+	resp.SUCCESS(c, gin.H{"items": result})
 }
 
 func (h *ImageHandler) getLoginUserID(c *gin.Context) uint {

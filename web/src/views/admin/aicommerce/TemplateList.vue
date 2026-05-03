@@ -16,10 +16,6 @@
     <el-table :data="items" stripe border style="width:100%;margin-top:12px">
       <el-table-column prop="module" label="模块" width="120" />
       <el-table-column prop="image_type" label="图片类型" width="140" />
-      <el-table-column prop="platform" label="平台" width="100" />
-      <el-table-column prop="language" label="语言" width="80" />
-      <el-table-column prop="ratio" label="比例" width="80" />
-      <el-table-column prop="model" label="模型" width="100" />
       <el-table-column prop="version" label="版本" width="60" />
       <el-table-column prop="status" label="状态" width="90">
         <template #default="scope">
@@ -56,44 +52,6 @@
           <el-col :span="8">
             <el-form-item label="图片类型" prop="image_type">
               <el-input v-model="item.image_type" placeholder="如 lifestyle_scene" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="平台">
-              <el-select v-model="item.platform" style="width:100%">
-                <el-option value="generic" label="通用" />
-                <el-option value="taobao" label="淘宝" />
-                <el-option value="jingdong" label="京东" />
-                <el-option value="amazon" label="亚马逊" />
-                <el-option value="douyin" label="抖音" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="8">
-            <el-form-item label="语言">
-              <el-select v-model="item.language" style="width:100%">
-                <el-option value="zh-CN" label="中文" />
-                <el-option value="en-US" label="英文" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="比例">
-              <el-select v-model="item.ratio" style="width:100%">
-                <el-option value="any" label="any（通配）" />
-                <el-option value="1:1" label="1:1" />
-                <el-option value="4:3" label="4:3" />
-                <el-option value="3:4" label="3:4" />
-                <el-option value="16:9" label="16:9" />
-                <el-option value="9:16" label="9:16" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="模型">
-              <el-input v-model="item.model" placeholder="如 kolors" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -182,7 +140,7 @@ const fetchData = () => {
 }
 
 const add = () => {
-  item.value = { module: 'main_image', platform: 'generic', language: 'zh-CN', ratio: 'any', model: 'kolors', status: 'draft' }
+  item.value = { module: 'main_image', status: 'draft' }
   dialogTitle.value = '新增 Prompt 模板'
   previewResult.positive = ''
   previewResult.negative = ''
@@ -235,9 +193,6 @@ const doPreview = () => {
     product_name: preview.product_name,
     selling_points: preview.selling_points,
     image_type: item.value.image_type,
-    platform: item.value.platform,
-    language: item.value.language,
-    ratio: item.value.ratio,
   }).then((res) => {
     previewResult.positive = res.data.positive
     previewResult.negative = res.data.negative

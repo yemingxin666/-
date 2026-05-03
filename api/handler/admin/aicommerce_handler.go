@@ -44,6 +44,12 @@ func (h *AiCommerceHandler) RegisterRoutes() {
 		group.POST("models/save", h.SaveModel)
 		group.GET("models/remove", h.RemoveModel)
 
+		// 平台规范管理
+		group.GET("platform-configs", h.ListPlatformConfigs)
+		group.POST("platform-configs/save", h.SavePlatformConfig)
+		group.GET("platform-configs/remove", h.RemovePlatformConfig)
+		group.POST("platform-configs/status", h.SetPlatformConfigStatus)
+
 		// 任务审计
 		group.GET("tasks", h.ListTasks)
 	}
@@ -126,7 +132,7 @@ func (h *AiCommerceHandler) PreviewTemplate(c *gin.Context) {
 		SellingPoints:       body.SellingPoints,
 		ImageTypeDesc:       prompt.ImageTypeDesc(body.ImageType),
 		Platform:            body.Platform,
-		PlatformRules:       prompt.PlatformRules(body.Platform),
+		PlatformRules:       prompt.PlatformRules(h.DB, body.Platform),
 		Language:            body.Language,
 		Ratio:               body.Ratio,
 		StyleDesc:           body.StyleDesc,
@@ -288,6 +294,130 @@ func (h *AiCommerceHandler) RemoveModel(c *gin.Context) {
 		resp.ERROR(c, err.Error())
 		return
 	}
+	resp.SUCCESS(c)
+}
+
+// ListPlatformConfigs 平台配置列表
+func (h *AiCommerceHandler) ListPlatformConfigs(c *gin.Context) {
+	status := c.Query("status")
+	keyword := c.Query("keyword")
+	query := h.DB.Model(&model.AiPlatformConfig{})
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("value LIKE ? OR label LIKE ?", like, like)
+	}
+	var items []model.AiPlatformConfig
+	if err := query.Order("sort_order ASC, id ASC").Find(&items).Error; err != nil {
+		resp.ERROR(c, err.Error())
+		return
+	}
+	resp.SUCCESS(c, gin.H{"items": items})
+}
+
+// SavePlatformConfig 新建/更新平台配置
+func (h *AiCommerceHandler) SavePlatformConfig(c *gin.Context) {
+	var data model.AiPlatformConfig
+	if err := c.ShouldBindJSON(&data); err != nil {
+		resp.ERROR(c, types.InvalidArgs)
+		return
+	}
+	if data.Value == "" || data.Label == "" || data.PromptStyle == "" {
+		resp.ERROR(c, types.InvalidArgs)
+		return
+	}
+	if data.DefaultLanguage == "" {
+		data.DefaultLanguage = "zh-CN"
+	}
+	if data.DefaultRatio == "" {
+		data.DefaultRatio = "1:1"
+	}
+	if data.Status == "" {
+		data.Status = model.PlatformStatusActive
+	}
+	if data.PriorityImages == nil {
+		data.PriorityImages = model.JSONMap{"must_have": []string{}, "recommended": []string{}, "optional": []string{}}
+	}
+	if data.Constraints == nil {
+		data.Constraints = model.JSONMap{}
+	}
+	now := time.Now()
+	if data.Id == 0 {
+		data.CreatedAt = now
+		data.UpdatedAt = now
+		if err := h.DB.Create(&data).Error; err != nil {
+			resp.ERROR(c, err.Error())
+			return
+		}
+	} else {
+		updates := map[string]interface{}{
+			"label":            data.Label,
+			"default_language": data.DefaultLanguage,
+			"default_ratio":    data.DefaultRatio,
+			"prompt_style":     data.PromptStyle,
+			"priority_images":  data.PriorityImages,
+			"constraints":      data.Constraints,
+			"status":           data.Status,
+			"sort_order":       data.SortOrder,
+			"updated_at":       now,
+		}
+		if err := h.DB.Model(&model.AiPlatformConfig{}).Where("id = ?", data.Id).Updates(updates).Error; err != nil {
+			resp.ERROR(c, err.Error())
+			return
+		}
+	}
+	prompt.ClearPlatformRulesCache()
+	resp.SUCCESS(c, data)
+}
+
+// RemovePlatformConfig 删除平台配置
+func (h *AiCommerceHandler) RemovePlatformConfig(c *gin.Context) {
+	id := h.GetInt(c, "id", 0)
+	if id <= 0 {
+		resp.ERROR(c, types.InvalidArgs)
+		return
+	}
+	var cfg model.AiPlatformConfig
+	if err := h.DB.Where("id = ?", id).First(&cfg).Error; err != nil {
+		resp.ERROR(c, err.Error())
+		return
+	}
+	if cfg.Value == "generic" {
+		resp.ERROR(c, "通用平台配置不允许删除")
+		return
+	}
+	if err := h.DB.Where("id = ?", id).Delete(&model.AiPlatformConfig{}).Error; err != nil {
+		resp.ERROR(c, err.Error())
+		return
+	}
+	prompt.ClearPlatformRulesCache()
+	resp.SUCCESS(c)
+}
+
+// SetPlatformConfigStatus 启用/禁用平台配置
+func (h *AiCommerceHandler) SetPlatformConfigStatus(c *gin.Context) {
+	var data struct {
+		Id     uint   `json:"id"`
+		Status string `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&data); err != nil {
+		resp.ERROR(c, types.InvalidArgs)
+		return
+	}
+	if data.Id == 0 || (data.Status != model.PlatformStatusActive && data.Status != model.PlatformStatusDisabled) {
+		resp.ERROR(c, types.InvalidArgs)
+		return
+	}
+	if err := h.DB.Model(&model.AiPlatformConfig{}).Where("id = ?", data.Id).Updates(map[string]interface{}{
+		"status":     data.Status,
+		"updated_at": time.Now(),
+	}).Error; err != nil {
+		resp.ERROR(c, err.Error())
+		return
+	}
+	prompt.ClearPlatformRulesCache()
 	resp.SUCCESS(c)
 }
 

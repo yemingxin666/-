@@ -29,9 +29,15 @@
     </div>
     <div class="panel-footer">
       <EcomCreditBadge :estimated-cost="mode === 'outpaint' ? 10 : 3" class="footer-credit" />
-      <button class="submit-btn" type="button" @click="submit" :disabled="taskStore.isRunning">
-        {{ taskStore.isRunning ? '处理中...' : '开始转换' }}
-      </button>
+      <el-tooltip
+        :content="!assetNos.length ? '请先上传参考图片' : ''"
+        :disabled="assetNos.length > 0"
+        placement="top"
+      >
+        <button class="submit-btn" type="button" @click="submit" :disabled="taskStore.isRunning || !assetNos.length">
+          {{ taskStore.isRunning ? '处理中...' : '开始转换' }}
+        </button>
+      </el-tooltip>
     </div>
   </aside>
 
@@ -77,7 +83,6 @@ const submit = async () => {
     await taskStore.submitTask('/api/ai-commerce/ratio-conversions', {
       module: 'ratio_convert', ratio: ratio.value, reference_assets: assetNos.value, style_desc: mode.value, model: configStore.selectedModel,
     })
-    configStore.deductPower(cost)
   } catch (e) { ElMessage.error('提交失败：' + e.message) }
 }
 

@@ -13,11 +13,15 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
   const userPower = ref(0)
 
   const platforms = [
-    { value: 'generic', label: '通用' },
-    { value: 'taobao', label: '淘宝' },
-    { value: 'jingdong', label: '京东' },
-    { value: 'amazon', label: '亚马逊' },
-    { value: 'douyin', label: '抖音' },
+    { value: 'pinduoduo', label: '拼多多' },
+    { value: 'taobao',    label: '淘宝/天猫' },
+    { value: 'jd',        label: '京东' },
+    { value: 'douyin',    label: '抖音电商' },
+    { value: 'xiaohongshu', label: '小红书' },
+    { value: 'amazon',    label: 'Amazon' },
+    { value: 'shopee',    label: 'Shopee' },
+    { value: 'shopify',   label: 'Shopify/独立站' },
+    { value: 'generic',   label: '通用' },
   ]
 
   const ratios = [
@@ -63,6 +67,7 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
   ]
 
   const aiModels = ref([])
+  const platformConfigs = ref(new Map())
   const STORAGE_KEY = 'ecom_selected_model'
   const activeModule = ref('main_image')
   const selectedModel = ref(localStorage.getItem(STORAGE_KEY) || '')
@@ -88,8 +93,24 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
     } catch (_) {}
   }
 
+  const loadPlatformConfigs = async () => {
+    try {
+      const res = await httpGet('/api/ai-commerce/platform-configs')
+      if (res.code === 0) {
+        const m = new Map()
+        ;(res.data?.items || []).forEach(item => m.set(item.value, item))
+        platformConfigs.value = m
+      }
+    } catch (e) {
+      console.error('[ecom] 加载平台配置失败:', e)
+    }
+  }
+
+  const getPlatformConfig = (value) => platformConfigs.value.get(value) || null
+
   const loadModels = async (moduleName) => {
     if (moduleName) activeModule.value = moduleName
+    loadPlatformConfigs() // 并行加载
     try {
       const res = await httpGet('/api/ai-commerce/models')
       aiModels.value = res.data || []
@@ -118,29 +139,68 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
       hint: hint,
       reference_assets: (assetNos || []).slice(0, 3)
     })
-    if (res.code !== 200) throw new Error(res.message || '生成失败')
-    return res.data.content
+    if (res.code !== 0) throw new Error(res.message || '生成失败')
+    return {
+      content: res.data.content,
+      analysis: res.data.analysis
+    }
   }
 
-  return { userPower, platforms, ratios, mainImageTypes, detailPageTypes, aiModels, activeModule, filteredModels, selectedModel, setSelectedModel, loadUserPower, loadModels, deductPower, generateCopywriting }
+  return { userPower, platforms, ratios, mainImageTypes, detailPageTypes, aiModels, platformConfigs, activeModule, filteredModels, selectedModel, setSelectedModel, loadUserPower, loadPlatformConfigs, getPlatformConfig, loadModels, deductPower, generateCopywriting }
 })
 
 export const useEcomTaskStore = defineStore('ecomTask', () => {
   const currentTask = ref(null)
   const outputs = ref([])
+  const items = ref([])
+  const submitting = ref(false)
   let pollTimer = null
 
   const isRunning = computed(() =>
-    currentTask.value?.status === 'queued' || currentTask.value?.status === 'running'
+    submitting.value ||
+    currentTask.value?.status === 'queued' ||
+    currentTask.value?.status === 'running'
   )
   const isDone = computed(() =>
     currentTask.value?.status === 'succeeded' || currentTask.value?.status === 'failed'
   )
 
   const submitTask = async (endpoint, data) => {
-    const res = await httpPost(endpoint, data)
-    currentTask.value = { task_no: res.data.task_no, status: res.data.status, progress: 0, credit_cost: res.data.credit_cost }
+    if (submitting.value) return
+    submitting.value = true
+    let res
+    try {
+      res = await httpPost(endpoint, data)
+    } finally {
+      submitting.value = false
+    }
+    const creditCost = res.data.credit_cost || 0
+    const taskNo = res.data.task_no
+    currentTask.value = { task_no: taskNo, status: res.data.status, progress: 0, credit_cost: creditCost }
     outputs.value = []
+
+    if (data.image_type) {
+      const configStore = useEcomConfigStore()
+      const allTypes = [...configStore.mainImageTypes, ...configStore.detailPageTypes]
+      items.value = data.image_type.split(',').filter(Boolean).map(t => ({
+        image_type: t,
+        label: allTypes.find(x => x.value === t)?.label || t,
+        status: 'pending',
+        phase: 'pending',
+        progress: 0,
+        url: null,
+      }))
+    } else {
+      items.value = []
+    }
+
+    localStorage.setItem('ecom_pending_task', JSON.stringify({
+      task_no: taskNo,
+      module: data.module || '',
+      image_type: data.image_type || '',
+    }))
+
+    useEcomConfigStore().deductPower(creditCost)
     startPolling()
     return res.data
   }
@@ -148,29 +208,80 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
   const startPolling = () => {
     if (pollTimer) clearInterval(pollTimer)
     pollTimer = setInterval(async () => {
-      if (!currentTask.value?.task_no) { stopPolling(); return }
+      const taskNo = currentTask.value?.task_no
+      if (!taskNo) { _stopPolling(); return }
       try {
-        const res = await httpGet(`/api/ai-commerce/tasks/${currentTask.value.task_no}`)
-        if (res.code === 200) {
+        const res = await httpGet(`/api/ai-commerce/tasks/${taskNo}`)
+        if (currentTask.value?.task_no !== taskNo) return // stale response guard
+        if (res.code === 0) {
           Object.assign(currentTask.value, res.data)
+          items.value = res.data.items || []
           outputs.value = res.data.outputs || []
-          if (res.data.status === 'succeeded' || res.data.status === 'failed') stopPolling()
+          if (res.data.status === 'succeeded' || res.data.status === 'failed') {
+            localStorage.removeItem('ecom_pending_task')
+            _stopPolling()
+          }
         }
-      } catch (_) { stopPolling() }
+      } catch (_) { _stopPolling() }
     }, 3000)
   }
 
-  const stopPolling = () => {
+  // 内部停止（不清 localStorage）
+  const _stopPolling = () => {
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
   }
 
+  // 对外暴露的 stopPolling（页面 unmount 时调用，不清 localStorage，任务可能仍在进行）
+  const stopPolling = () => _stopPolling()
+
   const reset = () => {
-    stopPolling()
+    _stopPolling()
+    submitting.value = false
     currentTask.value = null
     outputs.value = []
+    items.value = []
+    localStorage.removeItem('ecom_pending_task')
   }
 
-  return { currentTask, outputs, isRunning, isDone, submitTask, stopPolling, reset }
+  const resumeIfPending = async () => {
+    const raw = localStorage.getItem('ecom_pending_task')
+    if (!raw) return
+    try {
+      const { task_no, image_type } = JSON.parse(raw)
+      const res = await httpGet(`/api/ai-commerce/tasks/${task_no}`)
+      if (res.code !== 0) { localStorage.removeItem('ecom_pending_task'); return }
+      const taskData = res.data
+      if (taskData.status === 'succeeded' || taskData.status === 'failed') {
+        // task completed while page was closed — show result then clear storage
+        currentTask.value = { task_no, status: taskData.status, progress: taskData.progress || 0 }
+        outputs.value = taskData.outputs || []
+        items.value = taskData.items || []
+        localStorage.removeItem('ecom_pending_task')
+        return
+      }
+      currentTask.value = { task_no, status: taskData.status, progress: taskData.progress || 0 }
+      outputs.value = taskData.outputs || []
+      if (taskData.items?.length) {
+        items.value = taskData.items
+      } else if (image_type) {
+        const configStore = useEcomConfigStore()
+        const allTypes = [...configStore.mainImageTypes, ...configStore.detailPageTypes]
+        items.value = image_type.split(',').filter(Boolean).map(t => ({
+          image_type: t,
+          label: allTypes.find(x => x.value === t)?.label || t,
+          status: 'pending',
+          phase: 'pending',
+          progress: 0,
+          url: null,
+        }))
+      }
+      startPolling()
+    } catch (_) {
+      localStorage.removeItem('ecom_pending_task')
+    }
+  }
+
+  return { currentTask, outputs, items, isRunning, isDone, submitTask, startPolling, stopPolling, reset, resumeIfPending }
 })
 
 export const useEcomGalleryStore = defineStore('ecomGallery', () => {

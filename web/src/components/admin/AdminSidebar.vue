@@ -222,6 +222,11 @@ const items = [
         index: '/admin/aicommerce/tasks',
         title: '任务审计',
       },
+      {
+        icon: 'config',
+        index: '/admin/aicommerce/platforms',
+        title: '平台规范',
+      },
     ],
   },
   {

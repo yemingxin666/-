@@ -18,6 +18,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -215,6 +216,94 @@ func (s *MigrationService) TableMigration() {
 	if s.db.Migrator().HasColumn(&model.Product{}, "url") {
 		s.db.Migrator().DropColumn(&model.Product{}, "url")
 	}
+	if err := s.db.AutoMigrate(&model.AiPlatformConfig{}); err != nil {
+		logger.Errorf("migrate ai platform configs failed: %v", err)
+		return
+	}
+	if err := s.SeedAiPlatformConfigs(); err != nil {
+		logger.Errorf("seed ai platform configs failed: %v", err)
+	}
+}
+
+func (s *MigrationService) SeedAiPlatformConfigs() error {
+	items := []model.AiPlatformConfig{
+		{
+			Value: "pinduoduo", Label: "拼多多", DefaultLanguage: "zh-CN", DefaultRatio: "1:1", SortOrder: 10,
+			PromptStyle: "拼多多平台风格：价格醒目、红色系、强调性价比和促销氛围，商品主体清晰突出",
+			PriorityImages: model.JSONMap{"must_have": []string{}, "recommended": []string{}, "optional": []string{}},
+			Constraints:    model.JSONMap{},
+		},
+		{
+			Value: "taobao", Label: "淘宝", DefaultLanguage: "zh-CN", DefaultRatio: "1:1", SortOrder: 20,
+			PromptStyle: "淘宝平台风格：色彩鲜明、信息清晰、突出促销信息和商品卖点，中文排版清楚",
+			PriorityImages: model.JSONMap{"must_have": []string{}, "recommended": []string{}, "optional": []string{}},
+			Constraints:    model.JSONMap{},
+		},
+		{
+			Value: "tmall", Label: "天猫", DefaultLanguage: "zh-CN", DefaultRatio: "1:1", SortOrder: 30,
+			PromptStyle: "天猫平台风格：品质感强、简洁大气、突出品牌调性和高端质感",
+			PriorityImages: model.JSONMap{"must_have": []string{}, "recommended": []string{}, "optional": []string{}},
+			Constraints:    model.JSONMap{},
+		},
+		{
+			Value: "jd", Label: "京东", DefaultLanguage: "zh-CN", DefaultRatio: "1:1", SortOrder: 40,
+			PromptStyle: "京东平台风格：科技感、可信赖、突出品质、服务保障和专业商品展示",
+			PriorityImages: model.JSONMap{"must_have": []string{}, "recommended": []string{}, "optional": []string{}},
+			Constraints:    model.JSONMap{},
+		},
+		{
+			Value: "douyin", Label: "抖音", DefaultLanguage: "zh-CN", DefaultRatio: "9:16", SortOrder: 50,
+			PromptStyle: "抖音平台风格：视觉冲击强、年轻化、适合短视频电商场景，突出第一眼吸引力",
+			PriorityImages: model.JSONMap{"must_have": []string{}, "recommended": []string{}, "optional": []string{}},
+			Constraints:    model.JSONMap{},
+		},
+		{
+			Value: "xiaohongshu", Label: "小红书", DefaultLanguage: "zh-CN", DefaultRatio: "3:4", SortOrder: 60,
+			PromptStyle: "小红书平台风格：生活感强、清新自然、真实种草氛围，适合内容化商品展示",
+			PriorityImages: model.JSONMap{"must_have": []string{}, "recommended": []string{}, "optional": []string{}},
+			Constraints:    model.JSONMap{},
+		},
+		{
+			Value: "amazon", Label: "Amazon", DefaultLanguage: "en-US", DefaultRatio: "1:1", SortOrder: 70,
+			PromptStyle:    "Amazon style: clean white background, professional product photography, accurate product representation, no text overlay on main image",
+			PriorityImages: model.JSONMap{"must_have": []string{}, "recommended": []string{}, "optional": []string{}},
+			Constraints:    model.JSONMap{"force_white_bg": true, "no_text_overlay": true},
+		},
+		{
+			Value: "shopee", Label: "Shopee", DefaultLanguage: "en-US", DefaultRatio: "1:1", SortOrder: 80,
+			PromptStyle:    "Shopee style: bright and mobile-first product display for Southeast Asia marketplace, clear product focus",
+			PriorityImages: model.JSONMap{"must_have": []string{}, "recommended": []string{}, "optional": []string{}},
+			Constraints:    model.JSONMap{"force_white_bg": true, "no_text_overlay": true},
+		},
+		{
+			Value: "shopify", Label: "Shopify", DefaultLanguage: "en-US", DefaultRatio: "1:1", SortOrder: 90,
+			PromptStyle:    "Shopify style: brand-owned storefront, clean lifestyle presentation, conversion-focused product photography",
+			PriorityImages: model.JSONMap{"must_have": []string{}, "recommended": []string{}, "optional": []string{}},
+			Constraints:    model.JSONMap{},
+		},
+		{
+			Value: "lazada", Label: "Lazada", DefaultLanguage: "en-US", DefaultRatio: "1:1", SortOrder: 100,
+			PromptStyle:    "Lazada style: clean product display, Southeast Asia e-commerce standard, clear and trustworthy product presentation",
+			PriorityImages: model.JSONMap{"must_have": []string{}, "recommended": []string{}, "optional": []string{}},
+			Constraints:    model.JSONMap{"force_white_bg": true, "no_text_overlay": true},
+		},
+		{
+			Value: "aliexpress", Label: "AliExpress", DefaultLanguage: "en-US", DefaultRatio: "1:1", SortOrder: 110,
+			PromptStyle:    "AliExpress style: international audience, clear product details, neutral background, cross-border marketplace friendly",
+			PriorityImages: model.JSONMap{"must_have": []string{}, "recommended": []string{}, "optional": []string{}},
+			Constraints:    model.JSONMap{},
+		},
+		{
+			Value: "generic", Label: "通用", DefaultLanguage: "zh-CN", DefaultRatio: "1:1", SortOrder: 999,
+			PromptStyle:    "通用电商风格：商品主体清晰，背景简洁，光线均衡，突出商品质感与核心卖点",
+			PriorityImages: model.JSONMap{"must_have": []string{}, "recommended": []string{}, "optional": []string{}},
+			Constraints:    model.JSONMap{},
+		},
+	}
+	for i := range items {
+		items[i].Status = model.PlatformStatusActive
+	}
+	return s.db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "value"}}, DoNothing: true}).Create(&items).Error
 }
 
 // 迁移配置数据

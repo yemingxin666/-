@@ -27,9 +27,15 @@
     </div>
     <div class="panel-footer">
       <EcomCreditBadge :estimated-cost="8" class="footer-credit" />
-      <button class="submit-btn" type="button" @click="submit" :disabled="taskStore.isRunning">
-        {{ taskStore.isRunning ? '翻译中...' : '开始翻译' }}
-      </button>
+      <el-tooltip
+        :content="!assetNos.length ? '请先上传参考图片' : ''"
+        :disabled="assetNos.length > 0"
+        placement="top"
+      >
+        <button class="submit-btn" type="button" @click="submit" :disabled="taskStore.isRunning || !assetNos.length">
+          {{ taskStore.isRunning ? '翻译中...' : '开始翻译' }}
+        </button>
+      </el-tooltip>
     </div>
   </aside>
 
@@ -72,7 +78,6 @@ const submit = async () => {
     await taskStore.submitTask('/api/ai-commerce/image-text-translations', {
       module: 'translate', language: targetLang.value, reference_assets: assetNos.value, model: configStore.selectedModel,
     })
-    configStore.deductPower(8)
   } catch (e) { ElMessage.error('提交失败：' + e.message) }
 }
 

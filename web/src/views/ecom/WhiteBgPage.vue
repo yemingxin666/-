@@ -25,9 +25,15 @@
     </div>
     <div class="panel-footer">
       <EcomCreditBadge :estimated-cost="5" class="footer-credit" />
-      <button class="submit-btn" type="button" @click="submit" :disabled="taskStore.isRunning">
-        {{ taskStore.isRunning ? '处理中...' : '一键抠图' }}
-      </button>
+      <el-tooltip
+        :content="!assetNos.length ? '请先上传产品图片' : ''"
+        :disabled="assetNos.length > 0"
+        placement="top"
+      >
+        <button class="submit-btn" type="button" @click="submit" :disabled="taskStore.isRunning || !assetNos.length">
+          {{ taskStore.isRunning ? '处理中...' : '一键抠图' }}
+        </button>
+      </el-tooltip>
     </div>
   </aside>
 
@@ -70,7 +76,6 @@ const submit = async () => {
   if (configStore.userPower < 5) { ElMessage.error('算力不足，请充值'); return }
   try {
     await taskStore.submitTask('/api/ai-commerce/white-backgrounds', { module: 'white_bg', ratio: ratio.value, reference_assets: assetNos.value, product_name: productName.value, model: configStore.selectedModel })
-    configStore.deductPower(5)
   } catch (e) { ElMessage.error('提交失败：' + e.message) }
 }
 
