@@ -26,4 +26,6 @@ type Uploader interface {
 	PutUrlFile(url string, ext string, useProxy bool) (string, error)
 	PutBase64(imageData string) (string, error)
 	Delete(fileURL string) error
+	// SignURL 对已存储的文件 URL 生成带时效的访问地址；不支持签名的实现直接返回原 URL
+	SignURL(fileURL string, expireSeconds int64) (string, error)
 }

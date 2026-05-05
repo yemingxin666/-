@@ -13,30 +13,13 @@ func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
 
-// FindTemplate 5级 Fallback 模板查询
-// Level 1: 精确匹配 module+imageType+platform+language+ratio
-// Level 2: ratio → any
-// Level 3: language → zh-CN
-// Level 4: platform → generic
-// Level 5: imageType → generic
-func (r *Repository) FindTemplate(module, imageType, platform, language, ratio string) (*model.AiPromptTemplate, error) {
-	levels := []struct{ platform, language, ratio string }{
-		{platform, language, ratio},
-		{platform, language, "any"},
-		{platform, "zh-CN", "any"},
-		{"generic", "zh-CN", "any"},
-		{"generic", "zh-CN", "any"}, // Level 5 用 imageType=generic
-	}
-
-	for i, lvl := range levels {
-		imgType := imageType
-		if i == 4 {
-			imgType = "generic"
-		}
+// FindTemplate 按 module+image_type 查询激活模板，image_type 不存在时降级到 generic
+func (r *Repository) FindTemplate(module, imageType string) (*model.AiPromptTemplate, error) {
+	for _, imgType := range []string{imageType, "generic"} {
 		var tmpl model.AiPromptTemplate
 		err := r.db.Where(
-			"module = ? AND image_type = ? AND platform = ? AND language = ? AND ratio = ? AND status = ?",
-			module, imgType, lvl.platform, lvl.language, lvl.ratio, model.TemplateStatusActive,
+			"module = ? AND image_type = ? AND status = ?",
+			module, imgType, model.TemplateStatusActive,
 		).Order("version DESC").First(&tmpl).Error
 		if err == nil {
 			return &tmpl, nil

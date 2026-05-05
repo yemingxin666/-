@@ -249,7 +249,11 @@ func (c *OpenAIVisionCopywriter) doRequest(ctx context.Context, req visionChatRe
 	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return "", fmt.Errorf("vision copywrite provider returned status %d", resp.StatusCode)
+		snippet := strings.TrimSpace(string(body))
+		if len(snippet) > 300 {
+			snippet = snippet[:300]
+		}
+		return "", fmt.Errorf("vision copywrite provider returned status %d: %s", resp.StatusCode, snippet)
 	}
 
 	var result visionChatResp

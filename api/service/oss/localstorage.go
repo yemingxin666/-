@@ -107,4 +107,8 @@ func (s LocalStorage) Delete(fileURL string) error {
 	return os.Remove(filePath)
 }
 
+func (s LocalStorage) SignURL(fileURL string, _ int64) (string, error) {
+	return fileURL, nil
+}
+
 var _ Uploader = LocalStorage{}

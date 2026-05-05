@@ -107,6 +107,19 @@ export function httpPost(url, data = {}, options = {}) {
   })
 }
 
+export function httpDelete(url) {
+  return new Promise((resolve, reject) => {
+    axios
+      .delete(url)
+      .then((response) => {
+        resolve(response.data)
+      })
+      .catch((err) => {
+        reject(err)
+      })
+  })
+}
+
 export function httpDownload(url) {
   return new Promise((resolve, reject) => {
     axios({

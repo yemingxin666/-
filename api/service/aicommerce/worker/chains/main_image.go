@@ -66,7 +66,7 @@ func RunMainImage(
 			return fmt.Errorf("请上传参考图后再生成")
 		}
 
-		imageURLs := resolveAssetURLs(db, task.UserId, assetNos, cfg)
+		imageURLs := resolveAssetURLs(db, task.UserId, assetNos, cfg, uploader)
 		if len(imageURLs) == 0 {
 			return fmt.Errorf("参考图解析失败，请重新上传")
 		}
@@ -93,6 +93,10 @@ func RunMainImage(
 	imageTypes := splitImageTypes(task.ImageType)
 	total := len(imageTypes)
 
+	// 解析参考图 URL（循环外，避免重复查询）
+	refAssetNos, _ := extractStringSlice(input, "reference_assets")
+	refURLs := resolveAssetURLs(db, task.UserId, refAssetNos, cfg, uploader)
+
 	var firstErr error
 	succeededCount := 0
 
@@ -103,7 +107,7 @@ func RunMainImage(
 		// 阶段 1：rendering — 创建占位 asset，前端立即可见"进行中"
 		phaseAssetID := createPhaseAsset(db, task, imageType, PhaseRendering)
 
-		tmpl, err := repo.FindTemplate(task.Module, imageType, task.Platform, task.Language, task.Ratio)
+		tmpl, err := repo.FindTemplate(task.Module, imageType)
 		if err != nil {
 			saveTypeError(db, task, imageType, fmt.Sprintf("模板未找到: %v", err), phaseAssetID)
 			if firstErr == nil {
@@ -135,15 +139,24 @@ func RunMainImage(
 		// 阶段 2：generating — 调用 AI API
 		updatePhaseAsset(db, phaseAssetID, PhaseGenerating)
 
-		genReq := provider.TextToImageReq{
-			Model:          task.Model,
-			Prompt:         rendered.PositivePrompt,
-			NegativePrompt: rendered.NegativePrompt,
-			ImageSize:      provider.RatioToSize(task.Ratio),
-			BatchSize:      1,
-			GuidanceScale:  7.5,
+		var genResult *provider.GenerateResult
+		if len(refURLs) > 0 {
+			genResult, err = imgClient.ImageToImage(ctx, provider.ImageToImageReq{
+				Model:     task.Model,
+				Prompt:    rendered.PositivePrompt,
+				ImageURL:  refURLs[0],
+				ImageSize: provider.RatioToSize(task.Ratio),
+				Strength:  0.85,
+			})
+		} else {
+			genResult, err = imgClient.TextToImage(ctx, provider.TextToImageReq{
+				Model:          task.Model,
+				Prompt:         rendered.PositivePrompt,
+				NegativePrompt: rendered.NegativePrompt,
+				ImageSize:      provider.RatioToSize(task.Ratio),
+				BatchSize:      1,
+			})
 		}
-		genResult, err := imgClient.TextToImage(ctx, genReq)
 		if err != nil {
 			saveTypeError(db, task, imageType, fmt.Sprintf("生图失败: %v", err), phaseAssetID)
 			if firstErr == nil {
@@ -291,7 +304,7 @@ func fillAnalysisVars(vars prompt.Vars, a *provider.CopywriteAnalysis) prompt.Va
 }
 
 // resolveAssetURLs 将 asset_no 列表解析为可访问的图片 URL
-func resolveAssetURLs(db *gorm.DB, userID uint, assetNos []string, cfg aicommerce.Config) []string {
+func resolveAssetURLs(db *gorm.DB, userID uint, assetNos []string, cfg aicommerce.Config, uploader oss.Uploader) []string {
 	var assets []model.AiImageAsset
 	if err := db.Where("user_id = ? AND asset_no IN ? AND deleted_at IS NULL", userID, assetNos).
 		Find(&assets).Error; err != nil {
@@ -301,6 +314,11 @@ func resolveAssetURLs(db *gorm.DB, userID uint, assetNos []string, cfg aicommerc
 	byNo := make(map[string]model.AiImageAsset, len(assets))
 	for _, a := range assets {
 		byNo[a.AssetNo] = a
+	}
+
+	ttl := int64(cfg.AssetURLTTL)
+	if ttl <= 0 {
+		ttl = 3600
 	}
 
 	urls := make([]string, 0, len(assetNos))
@@ -314,7 +332,11 @@ func resolveAssetURLs(db *gorm.DB, userID uint, assetNos []string, cfg aicommerc
 			continue
 		}
 		if strings.HasPrefix(key, "http://") || strings.HasPrefix(key, "https://") {
-			urls = append(urls, key)
+			signed, err := uploader.SignURL(key, ttl)
+			if err != nil {
+				continue
+			}
+			urls = append(urls, signed)
 			continue
 		}
 		bucket := strings.TrimSpace(asset.OssBucket)
@@ -324,7 +346,12 @@ func resolveAssetURLs(db *gorm.DB, userID uint, assetNos []string, cfg aicommerc
 		if bucket == "" {
 			continue
 		}
-		urls = append(urls, fmt.Sprintf("https://%s.oss-cn-hangzhou.aliyuncs.com/%s", bucket, strings.TrimLeft(key, "/")))
+		rawURL := fmt.Sprintf("https://%s.oss-cn-hangzhou.aliyuncs.com/%s", bucket, strings.TrimLeft(key, "/"))
+		signed, err := uploader.SignURL(rawURL, ttl)
+		if err != nil {
+			continue
+		}
+		urls = append(urls, signed)
 	}
 	return urls
 }

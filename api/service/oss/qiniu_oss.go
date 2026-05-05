@@ -148,4 +148,8 @@ func (s QiNiuOss) Delete(fileURL string) error {
 	return s.bucket.Delete(s.config.Bucket, objectKey)
 }
 
+func (s QiNiuOss) SignURL(fileURL string, _ int64) (string, error) {
+	return fileURL, nil
+}
+
 var _ Uploader = QiNiuOss{}

@@ -450,10 +450,10 @@ func main() {
 		fx.Invoke(func(s *core.AppServer, h *admin.AiCommerceHandler) {
 			h.RegisterRoutes()
 		}),
-		fx.Provide(func(app *core.AppServer, db *gorm.DB, rdb *redis.Client) *handlerAicommerce.ImageHandler {
+		fx.Provide(func(app *core.AppServer, db *gorm.DB, rdb *redis.Client, mgr *oss.UploaderManager) *handlerAicommerce.ImageHandler {
 			cfg := aicommerce.DefaultConfig()
-			svc := aicommerce.NewImageService(db, rdb, cfg)
-			return handlerAicommerce.NewImageHandler(app, db, svc)
+			svc := aicommerce.NewImageService(db, rdb, cfg, mgr.GetUploadHandler())
+			return handlerAicommerce.NewImageHandler(app, db, svc, mgr)
 		}),
 		fx.Invoke(func(s *core.AppServer, h *handlerAicommerce.ImageHandler) {
 			h.RegisterRoutes()
@@ -466,6 +466,17 @@ func main() {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
 					go d.Run(context.Background())
+					return nil
+				},
+			})
+		}),
+		fx.Provide(func(db *gorm.DB, mgr *oss.UploaderManager) *aicWorker.ReferenceCleaner {
+			return aicWorker.NewReferenceCleaner(db, mgr)
+		}),
+		fx.Invoke(func(lc fx.Lifecycle, c *aicWorker.ReferenceCleaner) {
+			lc.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					go c.Run(context.Background())
 					return nil
 				},
 			})

@@ -7,24 +7,31 @@ import (
 	"geekai/core/middleware"
 	"geekai/core/types"
 	"geekai/service/aicommerce"
+	"geekai/service/oss"
 	"geekai/store/model"
 	"geekai/utils/resp"
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-type ImageHandler struct {
-	app     *core.AppServer
-	db      *gorm.DB
-	service *aicommerce.ImageService
+func encodeBase64(data []byte) string {
+	return base64.StdEncoding.EncodeToString(data)
 }
 
-func NewImageHandler(app *core.AppServer, db *gorm.DB, svc *aicommerce.ImageService) *ImageHandler {
-	return &ImageHandler{app: app, db: db, service: svc}
+type ImageHandler struct {
+	app      *core.AppServer
+	db       *gorm.DB
+	service  *aicommerce.ImageService
+	uploader oss.Uploader
+}
+
+func NewImageHandler(app *core.AppServer, db *gorm.DB, svc *aicommerce.ImageService, mgr *oss.UploaderManager) *ImageHandler {
+	return &ImageHandler{app: app, db: db, service: svc, uploader: mgr.GetUploadHandler()}
 }
 
 func (h *ImageHandler) RegisterRoutes() {
@@ -77,7 +84,7 @@ func (h *ImageHandler) GenerateImage(module string) gin.HandlerFunc {
 	}
 }
 
-// UploadAsset 上传参考图片，转为 Base64 data URL 返回，不落盘不存 DB
+// UploadAsset 上传参考图片到 OSS，写入 DB，返回 asset_no
 func (h *ImageHandler) UploadAsset(c *gin.Context) {
 	userID := h.getLoginUserID(c)
 	if userID == 0 {
@@ -114,9 +121,31 @@ func (h *ImageHandler) UploadAsset(c *gin.Context) {
 	if mime == "" {
 		mime = "image/jpeg"
 	}
-	dataURL := fmt.Sprintf("data:%s;base64,%s", mime, base64.StdEncoding.EncodeToString(data))
 
-	resp.SUCCESS(c, gin.H{"asset_no": dataURL})
+	// PutBase64 期望纯 base64 字符串（不含 data URL 前缀）
+	ossKey, err := h.uploader.PutBase64(encodeBase64(data))
+	if err != nil {
+		resp.ERROR(c, "上传 OSS 失败: "+err.Error())
+		return
+	}
+
+	// 写入 DB
+	assetNo := fmt.Sprintf("ref_%d_%d", userID, time.Now().UnixNano())
+	asset := model.AiImageAsset{
+		AssetNo:  assetNo,
+		UserId:   userID,
+		Kind:     model.AssetKindReference,
+		OssKey:   ossKey,
+		MimeType: mime,
+		SizeBytes: int64(len(data)),
+		CreatedAt: time.Now(),
+	}
+	if err := h.db.Create(&asset).Error; err != nil {
+		resp.ERROR(c, "保存资产失败: "+err.Error())
+		return
+	}
+
+	resp.SUCCESS(c, gin.H{"asset_no": assetNo})
 }
 
 // GetTask 轮询任务状态
@@ -248,7 +277,7 @@ func (h *ImageHandler) Copywrite(c *gin.Context) {
 // ListModels 返回启用的 AI 模型列表（供用户端选择，不含 ApiKey）
 func (h *ImageHandler) ListModels(c *gin.Context) {
 	var models []model.AiModel
-	if err := h.db.Where("status = ?", "active").Order("sort_order ASC, id ASC").Find(&models).Error; err != nil {
+	if err := h.db.Where("status = ? AND model_type = ?", "active", "image").Order("sort_order ASC, id ASC").Find(&models).Error; err != nil {
 		resp.ERROR(c, err.Error())
 		return
 	}

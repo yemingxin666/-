@@ -103,6 +103,7 @@ func (d *Dispatcher) execute(ctx context.Context, taskID uint) {
 
 	var execErr error
 	uploader := d.uploadManager.GetUploadHandler()
+
 	switch task.Module {
 	case model.ModuleMainImage, model.ModuleDetailPage:
 		imgClient, err := d.resolveImageClient(ctx, &task)
@@ -200,9 +201,7 @@ func (d *Dispatcher) resolveImageClient(ctx context.Context, task *model.AiImage
 
 func requiredImageCapability(module string) string {
 	switch module {
-	case model.ModuleMainImage, model.ModuleDetailPage:
-		return "text2img"
-	case model.ModuleClone, model.ModuleRatioConvert:
+	case model.ModuleMainImage, model.ModuleDetailPage, model.ModuleClone, model.ModuleRatioConvert:
 		return "img2img"
 	default:
 		return ""

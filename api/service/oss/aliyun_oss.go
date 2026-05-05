@@ -135,4 +135,18 @@ func (s AliYunOss) Delete(fileURL string) error {
 	return s.bucket.DeleteObject(objectKey)
 }
 
+// SignURL 从完整 URL 提取 object key，生成带时效的预签名访问地址
+func (s AliYunOss) SignURL(fileURL string, expireSeconds int64) (string, error) {
+	if s.bucket == nil {
+		return fileURL, nil
+	}
+	domain := strings.TrimRight(s.config.Domain, "/")
+	objectKey := strings.TrimPrefix(fileURL, domain+"/")
+	if objectKey == fileURL {
+		// URL 不属于本 bucket，直接返回
+		return fileURL, nil
+	}
+	return s.bucket.SignURL(objectKey, oss.HTTPGet, expireSeconds)
+}
+
 var _ Uploader = AliYunOss{}

@@ -143,4 +143,8 @@ func (s MiniOss) Delete(fileURL string) error {
 	return s.client.RemoveObject(context.Background(), s.config.Bucket, objectKey, minio.RemoveObjectOptions{})
 }
 
+func (s MiniOss) SignURL(fileURL string, _ int64) (string, error) {
+	return fileURL, nil
+}
+
 var _ Uploader = MiniOss{}

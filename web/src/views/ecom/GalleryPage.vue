@@ -99,40 +99,53 @@ onMounted(() => galleryStore.fetchGallery())
   flex: 1;
   overflow-y: auto;
   padding: 16px 0;
+  background: var(--gray-btn-bg);
 }
 
-.gallery-grid { display: flex; flex-direction: column; gap: 0; }
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 0 20px;
+}
+
+@media (min-width: 1200px) {
+  .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+}
+@media (min-width: 1600px) {
+  .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px; }
+}
+@media (min-width: 1920px) {
+  .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+}
 
 .gallery-item {
-  background: transparent;
-  border: none;
-  border-top: 1px solid var(--theme-border-primary);
-  padding: 16px 24px 20px;
-  box-shadow: none;
+  background: var(--theme-bg);
+  border: 1px solid var(--theme-border-primary);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: box-shadow 0.2s, transform 0.2s;
 }
-.gallery-item:first-child { border-top: none; }
+.gallery-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
 
 .task-meta {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  margin-bottom: 10px;
 }
 
 .task-date { font-size: 12px; color: var(--text-secondary); }
 
-.task-outputs {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
-}
-
-@media (min-width: 1400px) {
-  .task-outputs { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-}
-@media (min-width: 1800px) {
-  .task-outputs { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
-}
+/* 单图：充满卡片；多图：2 列网格 */
+.task-outputs { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.task-outputs:has(> *:nth-child(2)) { grid-template-columns: 1fr 1fr; }
 
 .task-empty { font-size: 13px; color: var(--text-secondary); text-align: center; padding: 12px 0; }
 

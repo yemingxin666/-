@@ -1,5 +1,5 @@
 <template>
-  <div class="result-card" :class="{ 'is-failed': status === 'failed' }">
+  <div class="result-card" :class="{ 'is-failed': status === 'failed' }" :style="{ '--card-ratio': cssRatio }">
     <div class="card-image-wrap">
 
       <!-- 成功：显示图片 + 标签徽章 + 操作覆盖层 -->
@@ -10,10 +10,10 @@
           <el-button circle @click="download" title="下载">
             <el-icon><Download /></el-icon>
           </el-button>
-          <el-button circle @click="emit('regenerate')" title="重新生成">
+          <el-button circle @click="emit('regenerate', props.imageType)" title="重新生成">
             <el-icon><Refresh /></el-icon>
           </el-button>
-          <el-popconfirm title="确定删除？" @confirm="emit('delete')">
+          <el-popconfirm title="删除此任务的全部图片？" @confirm="emit('delete')">
             <template #reference>
               <el-button circle type="danger" title="删除">
                 <el-icon><Delete /></el-icon>
@@ -27,7 +27,7 @@
       <div v-else-if="status === 'failed'" class="error-card">
         <el-icon class="error-icon"><CircleCloseFilled /></el-icon>
         <div class="error-label">{{ label || '生成失败' }}</div>
-        <el-button size="small" @click="emit('regenerate')" class="retry-btn">重试</el-button>
+        <el-button size="small" @click="emit('regenerate', props.imageType)" class="retry-btn">重试</el-button>
       </div>
 
       <!-- 加载态：pending / running -->
@@ -55,6 +55,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { Download, Refresh, Delete, CircleCloseFilled } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -62,17 +63,30 @@ const props = defineProps({
   label: { type: String, default: '' },
   status: { type: String, default: 'succeeded' },
   progress: { type: Number, default: 0 },
+  imageType: { type: String, default: '' },
+  ratio: { type: String, default: '1:1' },
 })
+
+// "16:9" → "16/9"，CSS aspect-ratio 语法
+const cssRatio = computed(() => props.ratio.replace(':', '/'))
 const emit = defineEmits(['regenerate', 'delete'])
 
-const download = () => {
-  const a = document.createElement('a')
-  a.href = props.url
-  a.download = 'ecom_' + Date.now() + '.png'
-  a.target = '_blank'
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
+const download = async () => {
+  try {
+    const res = await fetch(props.url)
+    const blob = await res.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = 'ecom_' + Date.now() + '.png'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(objectUrl)
+  } catch {
+    // 跨域 fetch 失败时降级为新标签打开
+    window.open(props.url, '_blank')
+  }
 }
 </script>
 
@@ -101,7 +115,7 @@ const download = () => {
 
 .result-img {
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: var(--card-ratio, 1);
   display: block;
   transition: transform 0.5s;
 }
@@ -158,7 +172,7 @@ const download = () => {
 .skeleton-card {
   position: relative;
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: var(--card-ratio, 1);
   overflow: hidden;
 }
 .skeleton-img {
@@ -194,7 +208,7 @@ const download = () => {
 /* 失败态 */
 .error-card {
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: var(--card-ratio, 1);
   display: flex;
   flex-direction: column;
   align-items: center;

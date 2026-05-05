@@ -124,7 +124,7 @@ func extractStringSlice(m model.JSONMap, key string) ([]string, bool) {
 
 // ossUploadURL 从外部 URL 下载图片并上传到 OSS，返回 ossKey
 func ossUploadURL(uploader oss.Uploader, imgURL string) (string, error) {
-	ossKey, err := uploader.PutUrlFile(imgURL, "png", false)
+	ossKey, err := uploader.PutUrlFile(imgURL, "png", true)
 	if err != nil {
 		return "", fmt.Errorf("upload image to OSS: %w", err)
 	}

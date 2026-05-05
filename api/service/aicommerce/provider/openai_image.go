@@ -1,8 +1,12 @@
 package provider
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -17,22 +21,29 @@ const (
 )
 
 type OpenAIImageClient struct {
-	client openai.Client
-	model  string
+	client     openai.Client
+	httpClient *http.Client
+	baseURL    string
+	apiKey     string
+	model      string
 }
 
 func NewOpenAIImageClient(baseURL, apiKey, modelName string) *OpenAIImageClient {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	opts := []option.RequestOption{
 		option.WithAPIKey(apiKey),
 		option.WithRequestTimeout(120 * time.Second),
 	}
-	if strings.TrimSpace(baseURL) != "" {
-		opts = append(opts, option.WithBaseURL(strings.TrimRight(baseURL, "/")))
+	if baseURL != "" {
+		opts = append(opts, option.WithBaseURL(baseURL))
 	}
 
 	return &OpenAIImageClient{
-		client: openai.NewClient(opts...),
-		model:  modelName,
+		client:     openai.NewClient(opts...),
+		httpClient: &http.Client{Timeout: 120 * time.Second},
+		baseURL:    baseURL,
+		apiKey:     apiKey,
+		model:      modelName,
 	}
 }
 
@@ -40,29 +51,112 @@ func (c *OpenAIImageClient) TextToImage(ctx context.Context, req TextToImageReq)
 	return c.generate(ctx, req, nil)
 }
 
+// ImageToImage 使用 chat/completions 接口实现图生图（参考图直接传 URL）
 func (c *OpenAIImageClient) ImageToImage(ctx context.Context, req ImageToImageReq) (*GenerateResult, error) {
 	if strings.TrimSpace(req.ImageURL) == "" {
 		return nil, fmt.Errorf("image-to-image source image is empty")
 	}
-	if req.Strength < 0 || req.Strength > 1 {
-		return nil, fmt.Errorf("image-to-image strength must be between 0 and 1, got %v", req.Strength)
-	}
-	textReq := TextToImageReq{
-		Prompt:         req.Prompt,
-		NegativePrompt: req.NegativePrompt,
-		ImageSize:      req.ImageSize,
-		BatchSize:      1,
-		GuidanceScale:  req.GuidanceScale,
+
+	imageSize := req.ImageSize
+	if strings.TrimSpace(imageSize) == "" {
+		imageSize = "1024x1024"
 	}
 
-	extraOpts := []option.RequestOption{
-		option.WithJSONSet("image_url", req.ImageURL),
-	}
-	if req.Strength > 0 {
-		extraOpts = append(extraOpts, option.WithJSONSet("strength", req.Strength))
+	content := []map[string]interface{}{
+		{"type": "text", "text": req.Prompt},
+		{"type": "image_url", "image_url": map[string]string{"url": req.ImageURL}},
 	}
 
-	return c.generate(ctx, textReq, extraOpts)
+	body := map[string]interface{}{
+		"model":    c.model,
+		"stream":   false,
+		"quality":  "1k",
+		"messages": []map[string]interface{}{{"role": "user", "content": content}},
+	}
+	if isNanoBananaModel(c.model) {
+		body["aspect_ratio"] = imageSizeToAspectRatio(imageSize)
+	} else {
+		body["size"] = imageSize
+	}
+
+	data, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshal chat request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/chat/completions", bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("openai image generation: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snippet := strings.TrimSpace(string(respBody))
+		if len(snippet) > 300 {
+			snippet = snippet[:300]
+		}
+		return nil, fmt.Errorf("openai image generation: status %d: %s", resp.StatusCode, snippet)
+	}
+
+	var chatResp struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(respBody, &chatResp); err != nil {
+		return nil, fmt.Errorf("decode chat response: %w", err)
+	}
+	if len(chatResp.Choices) == 0 || chatResp.Choices[0].Message.Content == "" {
+		return nil, fmt.Errorf("image generation returned empty content")
+	}
+
+	// 从 markdown 格式 ![image](url) 中提取图片 URL
+	imgURL := extractMarkdownImageURL(chatResp.Choices[0].Message.Content)
+	if imgURL == "" {
+		return nil, fmt.Errorf("image generation returned no image URL in content: %s", chatResp.Choices[0].Message.Content)
+	}
+
+	width, height := imageSizeDimensions(imageSize)
+	return &GenerateResult{
+		Images: []struct {
+			URL       string `json:"url"`
+			Width     int    `json:"width"`
+			Height    int    `json:"height"`
+			TimingsMs int    `json:"timings_ms"`
+		}{{URL: imgURL, Width: width, Height: height}},
+	}, nil
+}
+
+// extractMarkdownImageURL 从 ![image](url) 格式中提取 URL
+func extractMarkdownImageURL(content string) string {
+	content = strings.TrimSpace(content)
+	start := strings.Index(content, "![")
+	if start < 0 {
+		return ""
+	}
+	urlStart := strings.Index(content[start:], "](")
+	if urlStart < 0 {
+		return ""
+	}
+	urlStart += start + 2
+	urlEnd := strings.Index(content[urlStart:], ")")
+	if urlEnd < 0 {
+		return ""
+	}
+	return strings.TrimSpace(content[urlStart : urlStart+urlEnd])
 }
 
 func (c *OpenAIImageClient) generate(ctx context.Context, req TextToImageReq, extraOpts []option.RequestOption) (*GenerateResult, error) {
@@ -147,7 +241,7 @@ func imageSizeDimensions(size string) (int, int) {
 }
 
 func isNanoBananaModel(model string) bool {
-	return strings.EqualFold(strings.TrimSpace(model), modelNanoBanana)
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), modelNanoBanana)
 }
 
 func requiresURLResponseFormat(model string) bool {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"geekai/service/aicommerce/prompt"
 	"geekai/service/aicommerce/provider"
+	"geekai/service/oss"
 	"geekai/store/model"
 	"strings"
 	"time"
@@ -19,16 +20,18 @@ type ImageService struct {
 	db          *gorm.DB
 	rdb         *redis.Client
 	cfg         Config
+	uploader    oss.Uploader
 	siliconFlow *provider.SiliconFlow
 	tongyi      *provider.Tongyi
 	promptRepo  *prompt.Repository
 }
 
-func NewImageService(db *gorm.DB, rdb *redis.Client, cfg Config) *ImageService {
+func NewImageService(db *gorm.DB, rdb *redis.Client, cfg Config, uploader oss.Uploader) *ImageService {
 	return &ImageService{
 		db:          db,
 		rdb:         rdb,
 		cfg:         cfg,
+		uploader:    uploader,
 		siliconFlow: provider.NewSiliconFlow(cfg.SiliconFlowBaseURL, cfg.SiliconFlowAPIKey),
 		tongyi:      provider.NewTongyi(cfg.TongyiBaseURL, cfg.TongyiAPIKey, cfg.TongyiModel),
 		promptRepo:  prompt.NewRepository(db),
@@ -83,7 +86,7 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 			return nil, fmt.Errorf("图片类型不能为空")
 		}
 		for _, imageType := range validTypes {
-			if _, err := s.promptRepo.FindTemplate(req.Module, imageType, req.Platform, req.Language, req.Ratio); err != nil {
+			if _, err := s.promptRepo.FindTemplate(req.Module, imageType); err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return nil, fmt.Errorf("图片类型「%s」暂无生成模板，请联系管理员配置", imageType)
 				}
@@ -179,6 +182,7 @@ func (s *ImageService) GetTask(ctx context.Context, userID uint, taskNo string) 
 		return nil, err
 	}
 	items, outputs, progress := buildTaskItems(&task, assets)
+	s.signTaskResult(outputs, items)
 	return &ImageTaskResult{Task: &task, Outputs: outputs, Items: items, Progress: progress}, nil
 }
 
@@ -336,15 +340,47 @@ func (s *ImageService) ListGallery(ctx context.Context, userID uint, module stri
 
 	result := make([]GalleryTask, len(tasks))
 	for i, t := range tasks {
+		urls := urlsByTaskID[t.Id]
+		s.signURLs(urls)
 		result[i] = GalleryTask{
 			AiImageTask: t,
-			Outputs:     urlsByTaskID[t.Id],
+			Outputs:     urls,
 		}
 		if result[i].Outputs == nil {
 			result[i].Outputs = []string{}
 		}
 	}
 	return result, total, nil
+}
+
+// signTaskResult 对任务结果中的所有图片 URL 进行签名
+func (s *ImageService) signTaskResult(outputs []string, items []ImageTaskItem) {
+	s.signURLs(outputs)
+	for i := range items {
+		if items[i].URL != nil && *items[i].URL != "" {
+			signed := s.signSingleURL(*items[i].URL)
+			items[i].URL = &signed
+		}
+	}
+}
+
+// signURLs 原地批量签名 URL 切片
+func (s *ImageService) signURLs(urls []string) {
+	for i, u := range urls {
+		urls[i] = s.signSingleURL(u)
+	}
+}
+
+// signSingleURL 对单个 URL 签名；不支持签名的实现会直接返回原 URL
+func (s *ImageService) signSingleURL(u string) string {
+	if u == "" || s.uploader == nil {
+		return u
+	}
+	signed, err := s.uploader.SignURL(u, int64(s.assetURLTTL()))
+	if err != nil {
+		return u
+	}
+	return signed
 }
 
 // Copywrite AI 代写卖点
@@ -451,7 +487,11 @@ func (s *ImageService) resolveCopywriteImageURLs(ctx context.Context, userID uin
 		}
 
 		if strings.HasPrefix(key, "http://") || strings.HasPrefix(key, "https://") {
-			urls = append(urls, key)
+			signed, err := s.uploader.SignURL(key, int64(s.assetURLTTL()))
+			if err != nil {
+				return nil, fmt.Errorf("参考图签名失败 %s: %w", assetNo, err)
+			}
+			urls = append(urls, signed)
 			continue
 		}
 
@@ -486,6 +526,13 @@ func (s *ImageService) resolveCopywriteVisionModel(ctx context.Context) (*model.
 		return nil, fmt.Errorf("视觉模型 gpt-4o 的 api_endpoint 未配置")
 	}
 	return &m, nil
+}
+
+func (s *ImageService) assetURLTTL() int {
+	if s.cfg.AssetURLTTL > 0 {
+		return s.cfg.AssetURLTTL
+	}
+	return 3600
 }
 
 func (s *ImageService) enqueue(ctx context.Context, taskID uint, taskNo string) error {

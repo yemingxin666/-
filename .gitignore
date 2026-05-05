@@ -15,3 +15,4 @@ logs
 *.sln
 *.sw?
 deploy/data
+api/config.toml

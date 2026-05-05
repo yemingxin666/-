@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import axios from 'axios'
-import { httpGet, httpPost } from '@/utils/http'
+import { httpGet, httpPost, httpDelete } from '@/utils/http'
 import { checkSession } from '@/store/cache'
 
 const MODULE_CAPS = {
@@ -40,7 +39,6 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
     { value: 'core_selling_point', label: '核心卖点' },
     { value: 'scene_immersion', label: '场景代入' },
     { value: 'value_breakdown', label: '价值拆解' },
-    { value: 'competitor_comparison', label: '竞品对比' },
     { value: 'detail_display', label: '细节展示' },
     { value: 'effect_proof', label: '效果证明' },
     { value: 'trust_building', label: '信任消疑' },
@@ -306,9 +304,14 @@ export const useEcomGalleryStore = defineStore('ecomGallery', () => {
   }
 
   const deleteTask = async (taskNo) => {
-    await axios.delete(`/api/ai-commerce/tasks/${taskNo}`)
-    items.value = items.value.filter((t) => t.task_no !== taskNo)
-    total.value = Math.max(0, total.value - 1)
+    try {
+      await httpDelete(`/api/ai-commerce/tasks/${taskNo}`)
+      items.value = items.value.filter((t) => t.task_no !== taskNo)
+      total.value = Math.max(0, total.value - 1)
+    } catch (e) {
+      console.error('[ecom] 删除任务失败:', e)
+      throw e
+    }
   }
 
   return { items, total, page, pageSize, moduleFilter, loading, fetchGallery, deleteTask }

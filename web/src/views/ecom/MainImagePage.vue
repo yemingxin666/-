@@ -86,7 +86,7 @@
           </template>
           <el-radio-group v-model="form.language">
             <el-radio value="zh-CN">简体中文</el-radio>
-            <el-radio value="en-US">English</el-radio>
+            <el-radio value="en">English</el-radio>
           </el-radio-group>
         </el-form-item>
 
@@ -146,7 +146,9 @@
           :label="item.label"
           :status="item.status"
           :progress="item.progress"
-          @regenerate="submit"
+          :image-type="item.image_type"
+          :ratio="form.ratio"
+          @regenerate="(imageType) => retryOne(imageType)"
           @delete="taskStore.reset()"
         />
       </template>
@@ -155,6 +157,7 @@
           v-for="(url, i) in taskStore.outputs"
           :key="i"
           :url="url"
+          :ratio="form.ratio"
           @regenerate="submit"
           @delete="taskStore.reset()"
         />
@@ -278,6 +281,21 @@ const submit = async () => {
     })
   } catch (e) {
     ElMessage.error('提交失败：' + e.message)
+  }
+}
+
+const retryOne = async (imageType) => {
+  if (!imageType) { submit(); return }
+  if (configStore.userPower < 10) { ElMessage.error('算力不足，请充值后重试'); return }
+  try {
+    await taskStore.submitTask('/api/ai-commerce/main-images', {
+      ...form.value,
+      module: 'main_image',
+      image_type: imageType,
+      model: configStore.selectedModel,
+    })
+  } catch (e) {
+    ElMessage.error('重试失败：' + e.message)
   }
 }
 

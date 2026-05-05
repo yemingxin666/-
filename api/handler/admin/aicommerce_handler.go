@@ -59,7 +59,6 @@ func (h *AiCommerceHandler) RegisterRoutes() {
 func (h *AiCommerceHandler) ListTemplates(c *gin.Context) {
 	module := c.Query("module")
 	status := c.Query("status")
-	platform := c.Query("platform")
 
 	query := h.DB.Model(&model.AiPromptTemplate{})
 	if module != "" {
@@ -67,9 +66,6 @@ func (h *AiCommerceHandler) ListTemplates(c *gin.Context) {
 	}
 	if status != "" {
 		query = query.Where("status = ?", status)
-	}
-	if platform != "" {
-		query = query.Where("platform = ?", platform)
 	}
 
 	var items []model.AiPromptTemplate
