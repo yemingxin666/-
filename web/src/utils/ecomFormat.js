@@ -19,10 +19,35 @@ const STYLE_DESC_MAP = {
 
 export function formatAnalysisToText(analysis, fallbackContent = '') {
   if (!analysis?.selling_points?.length) return fallbackContent
-  return analysis.selling_points.map(item => {
+
+  const lines = []
+
+  // 【商品品类】
+  const category = analysis.product_type || analysis.product_name_zh || analysis.product_name || ''
+  lines.push('【商品品类】' + category)
+  lines.push('')
+
+  // 【核心卖点】
+  lines.push('【核心卖点】')
+  analysis.selling_points.forEach(item => {
     const emoji = ICON_MAP[item.icon] || '📍'
-    return `${emoji} ${item.zh}${item.zh_desc ? '\n   ' + item.zh_desc : ''}`
-  }).join('\n')
+    const desc = item.zh_desc ? '：' + item.zh_desc : ''
+    lines.push(`${emoji} ${item.zh}${desc}`)
+  })
+  lines.push('')
+
+  // 【补充描述】
+  const audience = analysis.target_audience || ''
+  const scenes = analysis.target_scenes_zh?.length
+    ? analysis.target_scenes_zh
+    : (analysis.target_scenes || [])
+  let supplement = '【补充描述】' + audience
+  if (scenes.length) {
+    supplement += (audience ? '，' : '') + '适合' + scenes.join('、')
+  }
+  lines.push(supplement)
+
+  return lines.join('\n').trim()
 }
 
 export function getStyleDesc(recommendedStyle) {
