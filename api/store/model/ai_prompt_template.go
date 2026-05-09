@@ -7,7 +7,6 @@ type AiPromptTemplate struct {
 	TemplateKey      string    `gorm:"column:template_key;type:varchar(128);not null" json:"template_key"`
 	Module           string    `gorm:"column:module;type:varchar(32);not null" json:"module"`
 	ImageType        string    `gorm:"column:image_type;type:varchar(64);not null" json:"image_type"`
-	Model            string    `gorm:"column:model;type:varchar(64);not null;default:kolors" json:"model"`
 	SystemPrompt     string    `gorm:"column:system_prompt;type:mediumtext;not null" json:"system_prompt"`
 	UserTemplate     string    `gorm:"column:user_template;type:mediumtext;not null" json:"user_template"`
 	NegativeTemplate string    `gorm:"column:negative_template;type:mediumtext" json:"negative_template"`

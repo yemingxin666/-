@@ -97,7 +97,11 @@ func (h *AiCommerceHandler) SaveTemplate(c *gin.Context) {
 		}
 	} else {
 		data.UpdatedAt = now
-		if err := h.DB.Save(&data).Error; err != nil {
+		if err := h.DB.Select(
+			"template_key", "module", "image_type",
+			"system_prompt", "user_template", "negative_template",
+			"params_json", "version", "status", "updated_at",
+		).Save(&data).Error; err != nil {
 			resp.ERROR(c, err.Error())
 			return
 		}
