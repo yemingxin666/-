@@ -160,7 +160,10 @@
       </template>
     </div>
 
-    <div v-else-if="!taskStore.currentTask && !taskStore.items.length && !taskStore.outputs.length" class="result-empty">
+    <!-- 历史结果（会话级，未刷新前保留） -->
+    <EcomHistoryGroup />
+
+    <div v-else-if="!taskStore.currentTask && !taskStore.items.length && !taskStore.outputs.length && !taskStore.history.length" class="result-empty">
       <svg class="empty-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="8" y="14" width="64" height="52" rx="4" stroke="#d9d9d9" stroke-width="2.5"/>
         <path d="M8 46l18-14 14 12 10-8 22 16" stroke="#d9d9d9" stroke-width="2.5" stroke-linejoin="round"/>
@@ -188,6 +191,7 @@ import EcomRatioPicker from '@/components/ecom/EcomRatioPicker.vue'
 import EcomCreditBadge from '@/components/ecom/EcomCreditBadge.vue'
 import EcomProgressBar from '@/components/ecom/EcomProgressBar.vue'
 import EcomResultCard from '@/components/ecom/EcomResultCard.vue'
+import EcomHistoryGroup from '@/components/ecom/EcomHistoryGroup.vue'
 import { useCopywriteProgress } from '@/composables/useCopywriteProgress'
 import { formatAnalysisToText, getStyleDesc } from '@/utils/ecomFormat'
 

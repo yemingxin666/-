@@ -153,7 +153,25 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
   const items = ref([])
   const submitting = ref(false)
   const submittedRatio = ref('1:1')
+  // 会话级历史：未刷新浏览器时保留已完成任务的图片
+  const history = ref([])
   let pollTimer = null
+
+  // 把当前任务的结果快照存入历史（去重 by task_no）
+  const archiveCurrent = () => {
+    const taskNo = currentTask.value?.task_no
+    if (!taskNo) return
+    const hasImage = (items.value || []).some(i => i.url) || (outputs.value || []).length > 0
+    if (!hasImage) return
+    if (history.value.some(h => h.task_no === taskNo)) return
+    history.value.unshift({
+      task_no: taskNo,
+      items: JSON.parse(JSON.stringify(items.value || [])),
+      outputs: [...(outputs.value || [])],
+      ratio: submittedRatio.value,
+      ts: Date.now(),
+    })
+  }
 
   const isRunning = computed(() =>
     submitting.value ||
@@ -173,6 +191,8 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
     } finally {
       submitting.value = false
     }
+    // 提交新任务前，把当前未归档的成果先存入历史
+    archiveCurrent()
     const creditCost = res.data.credit_cost || 0
     const taskNo = res.data.task_no
     currentTask.value = { task_no: taskNo, status: res.data.status, progress: 0, credit_cost: creditCost }
@@ -219,7 +239,10 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
           items.value = res.data.items || []
           outputs.value = res.data.outputs || []
           if (res.data.status === 'succeeded') {
+            archiveCurrent()
             currentTask.value = null
+            outputs.value = []
+            items.value = []
             localStorage.removeItem('ecom_pending_task')
             _stopPolling()
           } else if (res.data.status === 'failed') {
@@ -248,6 +271,12 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
     localStorage.removeItem('ecom_pending_task')
   }
 
+  // 历史操作（仅作用于会话内存中的历史结果，不动当前任务）
+  const removeHistory = (taskNo) => {
+    history.value = history.value.filter(h => h.task_no !== taskNo)
+  }
+  const clearHistory = () => { history.value = [] }
+
   const resumeIfPending = async () => {
     const raw = localStorage.getItem('ecom_pending_task')
     if (!raw) return
@@ -257,10 +286,19 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
       if (res.code !== 0) { localStorage.removeItem('ecom_pending_task'); return }
       const taskData = res.data
       if (taskData.status === 'succeeded' || taskData.status === 'failed') {
-        // task completed while page was closed — show result, hide progress bar
-        currentTask.value = null
+        // 页面关闭期间任务已完成：恢复当前结果（成功的会在下次提交时归档进 history）
+        currentTask.value = { task_no, status: taskData.status, progress: taskData.progress || 100 }
+        submittedRatio.value = ratio || '1:1'
         outputs.value = taskData.outputs || []
         items.value = taskData.items || []
+        if (taskData.status === 'succeeded') {
+          archiveCurrent()
+          currentTask.value = null
+          outputs.value = []
+          items.value = []
+        } else {
+          currentTask.value = null
+        }
         localStorage.removeItem('ecom_pending_task')
         return
       }
@@ -287,7 +325,7 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
     }
   }
 
-  return { currentTask, outputs, items, isRunning, isDone, submittedRatio, submitTask, startPolling, stopPolling, reset, resumeIfPending }
+  return { currentTask, outputs, items, history, isRunning, isDone, submittedRatio, submitTask, startPolling, stopPolling, reset, resumeIfPending, removeHistory, clearHistory }
 })
 
 export const useEcomGalleryStore = defineStore('ecomGallery', () => {

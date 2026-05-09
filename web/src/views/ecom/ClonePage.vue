@@ -137,7 +137,8 @@
         @delete="taskStore.reset()"
       />
     </div>
-    <div v-else-if="!taskStore.currentTask" class="result-empty">
+    <EcomHistoryGroup />
+    <div v-if="!taskStore.currentTask && !taskStore.outputs.length && !taskStore.history.length" class="result-empty">
       <svg class="empty-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="8" y="14" width="64" height="52" rx="4" stroke="#d9d9d9" stroke-width="2.5"/>
         <path d="M8 46l18-14 14 12 10-8 22 16" stroke="#d9d9d9" stroke-width="2.5" stroke-linejoin="round"/>
@@ -153,7 +154,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { useEcomConfigStore, useEcomTaskStore } from '@/store/ecom'
@@ -164,6 +165,7 @@ import EcomRatioPicker from '@/components/ecom/EcomRatioPicker.vue'
 import EcomCreditBadge from '@/components/ecom/EcomCreditBadge.vue'
 import EcomProgressBar from '@/components/ecom/EcomProgressBar.vue'
 import EcomResultCard from '@/components/ecom/EcomResultCard.vue'
+import EcomHistoryGroup from '@/components/ecom/EcomHistoryGroup.vue'
 import { useCopywriteProgress } from '@/composables/useCopywriteProgress'
 import { formatAnalysisToText, getStyleDesc } from '@/utils/ecomFormat'
 
@@ -226,6 +228,7 @@ const submit = async () => {
   }
 }
 
+onMounted(() => taskStore.resumeIfPending())
 onUnmounted(() => taskStore.stopPolling())
 </script>
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="progress-wrap" v-if="task">
+  <div class="progress-wrap" v-if="task && task.status !== 'succeeded'">
     <el-progress
       :percentage="task.progress || 0"
       :status="progressStatus"

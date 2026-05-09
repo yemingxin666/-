@@ -39,14 +39,7 @@
         </el-skeleton>
         <div class="skeleton-info">
           <div class="skeleton-label">{{ label || '生成中...' }}</div>
-          <el-progress
-            v-if="status === 'running' && progress > 0"
-            :percentage="progress"
-            :stroke-width="3"
-            :show-text="false"
-            class="skeleton-progress"
-          />
-          <div v-else class="skeleton-phase">{{ status === 'running' ? '生图中...' : '排队中...' }}</div>
+          <div class="skeleton-phase">{{ status === 'running' ? '生图中...' : '排队中...' }}</div>
         </div>
       </div>
 

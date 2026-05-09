@@ -137,6 +137,7 @@
   <section class="result-panel">
     <EcomProgressBar v-if="taskStore.currentTask" />
 
+    <!-- 当前任务结果 -->
     <div v-if="taskStore.items.length || taskStore.outputs.length" class="result-grid">
       <template v-if="taskStore.items.length">
         <EcomResultCard
@@ -164,7 +165,10 @@
       </template>
     </div>
 
-    <div v-else-if="!taskStore.currentTask && !taskStore.items.length && !taskStore.outputs.length" class="result-empty">
+    <!-- 历史结果（会话级，未刷新前保留） -->
+    <EcomHistoryGroup />
+
+    <div v-else-if="!taskStore.currentTask && !taskStore.items.length && !taskStore.outputs.length && !taskStore.history.length" class="result-empty">
       <!-- 对照截图：破损图片 SVG + 文字 -->
       <svg class="empty-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="8" y="14" width="64" height="52" rx="4" stroke="#d9d9d9" stroke-width="2.5"/>
@@ -193,6 +197,7 @@ import EcomRatioPicker from '@/components/ecom/EcomRatioPicker.vue'
 import EcomCreditBadge from '@/components/ecom/EcomCreditBadge.vue'
 import EcomProgressBar from '@/components/ecom/EcomProgressBar.vue'
 import EcomResultCard from '@/components/ecom/EcomResultCard.vue'
+import EcomHistoryGroup from '@/components/ecom/EcomHistoryGroup.vue'
 import { useCopywriteProgress } from '@/composables/useCopywriteProgress'
 import { formatAnalysisToText, getStyleDesc } from '@/utils/ecomFormat'
 
@@ -469,6 +474,7 @@ onUnmounted(() => taskStore.stopPolling())
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 20px;
 }
+
 
 /* 空态 */
 .result-empty {

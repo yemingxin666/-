@@ -46,7 +46,8 @@
     <div v-if="taskStore.outputs.length" class="result-grid">
       <EcomResultCard v-for="(url, i) in taskStore.outputs" :key="i" :url="url" @regenerate="submit" @delete="taskStore.reset()" />
     </div>
-    <div v-else-if="!taskStore.currentTask" class="result-empty">
+    <EcomHistoryGroup />
+    <div v-if="!taskStore.currentTask && !taskStore.outputs.length && !taskStore.history.length" class="result-empty">
       <svg class="empty-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="8" y="14" width="64" height="52" rx="4" stroke="currentColor" stroke-width="2.5"/>
         <path d="M8 46l18-14 14 12 10-8 22 16" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
@@ -60,7 +61,7 @@
 </template>
 
 <script setup>
-import { ref, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useEcomConfigStore, useEcomTaskStore } from '@/store/ecom'
 import EcomImageUploader from '@/components/ecom/EcomImageUploader.vue'
@@ -68,6 +69,7 @@ import EcomRatioPicker from '@/components/ecom/EcomRatioPicker.vue'
 import EcomCreditBadge from '@/components/ecom/EcomCreditBadge.vue'
 import EcomProgressBar from '@/components/ecom/EcomProgressBar.vue'
 import EcomResultCard from '@/components/ecom/EcomResultCard.vue'
+import EcomHistoryGroup from '@/components/ecom/EcomHistoryGroup.vue'
 
 const configStore = useEcomConfigStore()
 const taskStore = useEcomTaskStore()
@@ -86,6 +88,7 @@ const submit = async () => {
   } catch (e) { ElMessage.error('提交失败：' + e.message) }
 }
 
+onMounted(() => taskStore.resumeIfPending())
 onUnmounted(() => taskStore.stopPolling())
 </script>
 
