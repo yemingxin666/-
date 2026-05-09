@@ -152,6 +152,7 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
   const outputs = ref([])
   const items = ref([])
   const submitting = ref(false)
+  const submittedRatio = ref('1:1')
   let pollTimer = null
 
   const isRunning = computed(() =>
@@ -176,6 +177,7 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
     const taskNo = res.data.task_no
     currentTask.value = { task_no: taskNo, status: res.data.status, progress: 0, credit_cost: creditCost }
     outputs.value = []
+    submittedRatio.value = data.ratio || '1:1'
 
     if (data.image_type) {
       const configStore = useEcomConfigStore()
@@ -196,6 +198,7 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
       task_no: taskNo,
       module: data.module || '',
       image_type: data.image_type || '',
+      ratio: data.ratio || '1:1',
     }))
 
     useEcomConfigStore().deductPower(creditCost)
@@ -215,7 +218,11 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
           Object.assign(currentTask.value, res.data)
           items.value = res.data.items || []
           outputs.value = res.data.outputs || []
-          if (res.data.status === 'succeeded' || res.data.status === 'failed') {
+          if (res.data.status === 'succeeded') {
+            currentTask.value = null
+            localStorage.removeItem('ecom_pending_task')
+            _stopPolling()
+          } else if (res.data.status === 'failed') {
             localStorage.removeItem('ecom_pending_task')
             _stopPolling()
           }
@@ -245,19 +252,20 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
     const raw = localStorage.getItem('ecom_pending_task')
     if (!raw) return
     try {
-      const { task_no, image_type } = JSON.parse(raw)
+      const { task_no, image_type, ratio } = JSON.parse(raw)
       const res = await httpGet(`/api/ai-commerce/tasks/${task_no}`)
       if (res.code !== 0) { localStorage.removeItem('ecom_pending_task'); return }
       const taskData = res.data
       if (taskData.status === 'succeeded' || taskData.status === 'failed') {
-        // task completed while page was closed — show result then clear storage
-        currentTask.value = { task_no, status: taskData.status, progress: taskData.progress || 0 }
+        // task completed while page was closed — show result, hide progress bar
+        currentTask.value = null
         outputs.value = taskData.outputs || []
         items.value = taskData.items || []
         localStorage.removeItem('ecom_pending_task')
         return
       }
       currentTask.value = { task_no, status: taskData.status, progress: taskData.progress || 0 }
+      submittedRatio.value = ratio || '1:1'
       outputs.value = taskData.outputs || []
       if (taskData.items?.length) {
         items.value = taskData.items
@@ -279,7 +287,7 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
     }
   }
 
-  return { currentTask, outputs, items, isRunning, isDone, submitTask, startPolling, stopPolling, reset, resumeIfPending }
+  return { currentTask, outputs, items, isRunning, isDone, submittedRatio, submitTask, startPolling, stopPolling, reset, resumeIfPending }
 })
 
 export const useEcomGalleryStore = defineStore('ecomGallery', () => {

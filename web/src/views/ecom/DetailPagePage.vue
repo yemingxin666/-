@@ -143,7 +143,7 @@
           :label="item.label"
           :status="item.status"
           :progress="item.progress"
-          :ratio="form.ratio"
+          :ratio="taskStore.submittedRatio"
           @regenerate="submit"
           @delete="taskStore.reset()"
         />
@@ -153,7 +153,7 @@
           v-for="(url, i) in taskStore.outputs"
           :key="i"
           :url="url"
-          :ratio="form.ratio"
+          :ratio="taskStore.submittedRatio"
           @regenerate="submit"
           @delete="taskStore.reset()"
         />

@@ -147,7 +147,7 @@
           :status="item.status"
           :progress="item.progress"
           :image-type="item.image_type"
-          :ratio="form.ratio"
+          :ratio="taskStore.submittedRatio"
           @regenerate="(imageType) => retryOne(imageType)"
           @delete="taskStore.reset()"
         />
@@ -157,7 +157,7 @@
           v-for="(url, i) in taskStore.outputs"
           :key="i"
           :url="url"
-          :ratio="form.ratio"
+          :ratio="taskStore.submittedRatio"
           @regenerate="submit"
           @delete="taskStore.reset()"
         />
