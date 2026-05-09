@@ -5,6 +5,7 @@
       :http-request="doUpload"
       :before-upload="beforeUpload"
       :on-remove="onRemove"
+      :on-preview="handlePreview"
       :multiple="multiple"
       :limit="limit"
       list-type="picture-card"
@@ -15,11 +16,20 @@
       <div class="el-upload__text">拖拽或点击上传</div>
     </el-upload>
     <div class="uploader-tip">支持 JPG/PNG/WEBP，单张不超过 {{ maxSizeMB }}MB</div>
+
+    <!-- 全功能图片预览（支持缩放、翻页） -->
+    <el-image-viewer
+      v-if="previewVisible"
+      :url-list="previewUrlList"
+      :initial-index="previewIndex"
+      teleported
+      @close="previewVisible = false"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { httpPost } from '@/utils/http'
@@ -34,6 +44,19 @@ const emit = defineEmits(['update:assetNos'])
 
 const fileList = ref([])
 const assetNos = ref([])
+const previewVisible = ref(false)
+const previewIndex = ref(0)
+
+// 所有已上传文件的可预览 URL
+const previewUrlList = computed(() =>
+  fileList.value.map((f) => f.url || (f.raw ? URL.createObjectURL(f.raw) : ''))
+)
+
+const handlePreview = (file) => {
+  const idx = fileList.value.findIndex((f) => f.uid === file.uid)
+  previewIndex.value = idx >= 0 ? idx : 0
+  previewVisible.value = true
+}
 
 const beforeUpload = (file) => {
   const allowed = ['image/jpeg', 'image/png', 'image/webp']
