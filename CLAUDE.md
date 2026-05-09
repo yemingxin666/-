@@ -64,3 +64,13 @@ Key entities: User, ChatItem, ChatMessage, ChatRole, ChatModel, Order, Product, 
 - Database: MySQL with automatic migrations
 - Services: Redis, various AI API integrations
 - File Storage: Local, Aliyun OSS, MinIO, Qiniu options
+
+## .context 项目上下文
+
+> 项目使用 `.context/` 管理开发决策上下文。
+
+- 编码规范：`.context/prefs/coding-style.md`
+- 工作流规则：`.context/prefs/workflow.md`
+- 决策历史：`.context/history/commits.md`
+
+**规则**：修改代码前必读 prefs/，做决策时按 workflow.md 规则记录日志。
