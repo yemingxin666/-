@@ -5,6 +5,7 @@
       <template v-if="stickyUrl && status !== 'failed'">
         <el-image :src="stickyUrl" fit="cover" class="result-img" :preview-src-list="[stickyUrl]" preview-teleported />
         <div v-if="label" class="label-badge">{{ label }}</div>
+        <div class="preview-hint">点击图片可放大预览</div>
         <div class="card-overlay">
           <el-button circle @click="download" title="下载">
             <el-icon><Download /></el-icon>
@@ -230,10 +231,41 @@ const download = async () => {
   gap: 12px;
   opacity: 0;
   transition: all 0.3s;
+  /* 让覆盖层不拦截图片本身的点击：仅按钮可交互，图片空白区域可触发 el-image 预览 */
+  pointer-events: none;
 }
 .result-card:hover .card-overlay,
 .result-card:focus-within .card-overlay {
   opacity: 1;
+}
+.card-overlay :deep(.el-button),
+.card-overlay :deep(.el-popconfirm) {
+  pointer-events: auto;
+}
+
+/* 图片层指针变手型，提示用户可点击放大 */
+.result-img { cursor: zoom-in; }
+
+/* hover 时顶部浮现提示文字，不拦截点击 */
+.preview-hint {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 10px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  border-radius: 12px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.25s, transform 0.25s;
+  pointer-events: none;
+  z-index: 3;
+  white-space: nowrap;
+}
+.result-card:hover .preview-hint {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 :deep(.el-button.is-circle) {
