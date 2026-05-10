@@ -264,6 +264,7 @@ type ImageTaskItem struct {
 	Phase     string  `json:"phase"`  // rendering | generating | uploading | succeeded | failed
 	Progress  int     `json:"progress"`
 	URL       *string `json:"url"`
+	AssetNo   string  `json:"asset_no,omitempty"` // 编辑功能需要：仅当资产已生成（OssKey != ""）时填充
 }
 
 // ImageTaskResult GetTask 完整响应
@@ -351,7 +352,9 @@ func buildTaskItems(task *model.AiImageTask, assets []model.AiImageAsset) ([]Ima
 	requestedTypes := splitImageTypes(task.ImageType)
 	total := len(requestedTypes)
 	if total == 0 {
-		return nil, outputs, task.Progress
+		// clone 等无 image_type 的模块：基于 assets 合成 items，让前端能拿到 asset_no
+		items := buildSyntheticItems(task, assets)
+		return items, outputs, task.Progress
 	}
 
 	items := make([]ImageTaskItem, 0, total)
@@ -372,6 +375,7 @@ func buildTaskItems(task *model.AiImageTask, assets []model.AiImageAsset) ([]Ima
 				url := a.OssKey
 				item.Status = "succeeded"
 				item.URL = &url
+				item.AssetNo = a.AssetNo
 				succeededCount++
 			} else if phase == "failed" {
 				item.Status = "failed"
@@ -395,6 +399,42 @@ func buildTaskItems(task *model.AiImageTask, assets []model.AiImageAsset) ([]Ima
 
 	progress := succeededCount * 100 / total
 	return items, outputs, progress
+}
+
+// buildSyntheticItems 为无 image_type 的模块（如 clone）按 assets 合成 items。
+// 让前端能基于 item.asset_no 触发编辑功能，同时保持与 typed item 接口一致。
+func buildSyntheticItems(task *model.AiImageTask, assets []model.AiImageAsset) []ImageTaskItem {
+	items := make([]ImageTaskItem, 0, len(assets))
+	idx := 0
+	for _, a := range assets {
+		if a.OssKey == "" {
+			continue
+		}
+		url := a.OssKey
+		items = append(items, ImageTaskItem{
+			ImageType: fmt.Sprintf("%s_%d", task.Module, idx),
+			Label:     fmt.Sprintf("%s %d", moduleLabel(task.Module), idx+1),
+			Status:    "succeeded",
+			Phase:     "succeeded",
+			Progress:  100,
+			URL:       &url,
+			AssetNo:   a.AssetNo,
+		})
+		idx++
+	}
+	return items
+}
+
+// moduleLabel 模块中文名（与前端 moduleMap 保持一致）
+func moduleLabel(m string) string {
+	labels := map[string]string{
+		"main_image": "主图设计", "detail_page": "详情页", "white_bg": "白底图",
+		"clone": "克隆设计", "ratio_convert": "比例转换", "translate": "图文翻译", "edit": "图片编辑",
+	}
+	if l, ok := labels[m]; ok {
+		return l
+	}
+	return m
 }
 
 // GalleryTask 历史图库列表项（含输出图片 URL + asset_no）

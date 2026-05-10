@@ -148,7 +148,8 @@
           :phase="item.phase"
           :image-type="item.image_type"
           :ratio="taskStore.submittedRatio"
-          @regenerate="(imageType) => retryOne(imageType)"
+          :editable="item.status === 'succeeded' && !!item.asset_no"
+          @edit="(p) => openEdit(taskStore.currentTask, item, p)"
           @delete="taskStore.reset()"
         />
       </template>
@@ -158,14 +159,22 @@
           :key="i"
           :url="url"
           :ratio="taskStore.submittedRatio"
-          @regenerate="submit"
           @delete="taskStore.reset()"
         />
       </template>
     </div>
 
     <!-- 历史结果（会话级，未刷新前保留） -->
-    <EcomHistoryGroup />
+    <EcomHistoryGroup @edit="(task, item, p) => openEdit(task, item, p)" />
+
+    <EcomEditDialog
+      v-model="editVisible"
+      :url="editPayload.url"
+      :ratio="editPayload.ratio"
+      :task-no="editPayload.taskNo"
+      :asset-no="editPayload.assetNo"
+      @submitted="onEditSubmitted"
+    />
 
     <div v-if="!taskStore.currentTask && !taskStore.items.length && !taskStore.outputs.length && !taskStore.history.length" class="result-empty">
       <!-- 对照截图：破损图片 SVG + 文字 -->
@@ -196,12 +205,15 @@ import EcomRatioPicker from '@/components/ecom/EcomRatioPicker.vue'
 import EcomCreditBadge from '@/components/ecom/EcomCreditBadge.vue'
 import EcomResultCard from '@/components/ecom/EcomResultCard.vue'
 import EcomHistoryGroup from '@/components/ecom/EcomHistoryGroup.vue'
+import EcomEditDialog from '@/components/ecom/EcomEditDialog.vue'
+import { useEcomEdit } from '@/composables/useEcomEdit'
 import { useCopywriteProgress } from '@/composables/useCopywriteProgress'
 import { formatAnalysisToText, getStyleDesc } from '@/utils/ecomFormat'
 
 const configStore = useEcomConfigStore()
 const taskStore = useEcomTaskStore()
 const { percentage, showProgress, start: startProgress, finish: finishProgress } = useCopywriteProgress()
+const { editVisible, editPayload, openEdit, onEditSubmitted } = useEcomEdit()
 
 const form = ref({
   product_name: '',
@@ -284,21 +296,6 @@ const submit = async () => {
     })
   } catch (e) {
     ElMessage.error('提交失败：' + e.message)
-  }
-}
-
-const retryOne = async (imageType) => {
-  if (!imageType) { submit(); return }
-  if (configStore.userPower < 10) { ElMessage.error('算力不足，请充值后重试'); return }
-  try {
-    await taskStore.submitTask('/api/ai-commerce/main-images', {
-      ...form.value,
-      module: 'main_image',
-      image_type: imageType,
-      model: configStore.selectedModel,
-    })
-  } catch (e) {
-    ElMessage.error('重试失败：' + e.message)
   }
 }
 

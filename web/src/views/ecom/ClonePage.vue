@@ -128,13 +128,26 @@
 
   <section class="result-panel">
     <!-- 单图模块：任务进行中显示占位卡片，含独立进度条 -->
-    <div v-if="taskStore.outputs.length || taskStore.isRunning" class="result-grid">
-      <template v-if="taskStore.outputs.length">
+    <div v-if="taskStore.items.length || taskStore.outputs.length || taskStore.isRunning" class="result-grid">
+      <template v-if="taskStore.items.length">
+        <EcomResultCard
+          v-for="item in taskStore.items"
+          :key="item.image_type || item.asset_no"
+          :url="item.url"
+          :status="item.status"
+          :progress="item.progress"
+          :phase="item.phase"
+          :ratio="taskStore.submittedRatio"
+          :editable="item.status === 'succeeded' && !!item.asset_no"
+          @edit="(p) => openEdit(taskStore.currentTask, item, p)"
+          @delete="taskStore.reset()"
+        />
+      </template>
+      <template v-else-if="taskStore.outputs.length">
         <EcomResultCard
           v-for="(url, i) in taskStore.outputs"
           :key="i"
           :url="url"
-          @regenerate="submit"
           @delete="taskStore.reset()"
         />
       </template>
@@ -144,11 +157,19 @@
         :status="taskStore.currentTask?.status || 'pending'"
         :progress="taskStore.currentTask?.progress || 0"
         :ratio="taskStore.submittedRatio"
-        @regenerate="submit"
         @delete="taskStore.reset()"
       />
     </div>
-    <EcomHistoryGroup />
+    <EcomHistoryGroup @edit="(task, item, p) => openEdit(task, item, p)" />
+
+    <EcomEditDialog
+      v-model="editVisible"
+      :url="editPayload.url"
+      :ratio="editPayload.ratio"
+      :task-no="editPayload.taskNo"
+      :asset-no="editPayload.assetNo"
+      @submitted="onEditSubmitted"
+    />
     <div v-if="!taskStore.currentTask && !taskStore.outputs.length && !taskStore.history.length" class="result-empty">
       <svg class="empty-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="8" y="14" width="64" height="52" rx="4" stroke="#d9d9d9" stroke-width="2.5"/>
@@ -176,12 +197,15 @@ import EcomRatioPicker from '@/components/ecom/EcomRatioPicker.vue'
 import EcomCreditBadge from '@/components/ecom/EcomCreditBadge.vue'
 import EcomResultCard from '@/components/ecom/EcomResultCard.vue'
 import EcomHistoryGroup from '@/components/ecom/EcomHistoryGroup.vue'
+import EcomEditDialog from '@/components/ecom/EcomEditDialog.vue'
+import { useEcomEdit } from '@/composables/useEcomEdit'
 import { useCopywriteProgress } from '@/composables/useCopywriteProgress'
 import { formatAnalysisToText, getStyleDesc } from '@/utils/ecomFormat'
 
 const configStore = useEcomConfigStore()
 const taskStore = useEcomTaskStore()
 const { percentage, showProgress, start: startProgress, finish: finishProgress } = useCopywriteProgress()
+const { editVisible, editPayload, openEdit, onEditSubmitted } = useEcomEdit()
 
 const form = ref({
   product_name: '',

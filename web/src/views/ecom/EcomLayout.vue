@@ -10,10 +10,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { provide, ref } from 'vue'
 import EcomTopNav from './EcomTopNav.vue'
 
 const activeModule = ref('main_image')
+
+// 提供给子页面用于跨 tab 跳转（如编辑提交后跳到历史图库）
+const setModule = (mod) => { activeModule.value = mod }
+provide('setEcomModule', setModule)
 </script>
 
 <style scoped>
