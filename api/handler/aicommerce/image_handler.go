@@ -49,6 +49,7 @@ func (h *ImageHandler) RegisterRoutes() {
 		group.GET("/tasks/:task_no", h.GetTask)
 		group.GET("/tasks/:task_no/events", h.TaskEvents)
 		group.DELETE("/tasks/:task_no", h.DeleteTask)
+		group.DELETE("/assets/:asset_no", h.DeleteAsset)
 		group.GET("/gallery", h.Gallery)
 		group.POST("/copywrite", h.Copywrite)
 		group.GET("/models", h.ListModels)
@@ -250,6 +251,42 @@ func (h *ImageHandler) DeleteTask(c *gin.Context) {
 	if result.RowsAffected == 0 {
 		resp.ERROR(c, "任务不存在或已删除")
 		return
+	}
+	resp.SUCCESS(c, nil)
+}
+
+// DeleteAsset 软删除单张资产；若该任务下所有资产均被删除，则级联软删除任务本身。
+// 解决场景：历史图库一个任务多张图，仅删除其中一张时不应丢失其他图。
+func (h *ImageHandler) DeleteAsset(c *gin.Context) {
+	userID := h.getLoginUserID(c)
+	assetNo := c.Param("asset_no")
+
+	var asset model.AiImageAsset
+	if err := h.db.Where("asset_no = ? AND user_id = ? AND deleted_at IS NULL", assetNo, userID).
+		First(&asset).Error; err != nil {
+		resp.ERROR(c, "资产不存在或已删除")
+		return
+	}
+
+	now := time.Now()
+	if err := h.db.Model(&model.AiImageAsset{}).
+		Where("id = ?", asset.Id).
+		Update("deleted_at", &now).Error; err != nil {
+		resp.ERROR(c, "删除失败: "+err.Error())
+		return
+	}
+
+	// 级联：若任务下已无未删除的真实资产（OssKey != ""），软删整个任务，避免空任务残留列表
+	if asset.TaskId != nil {
+		var remaining int64
+		h.db.Model(&model.AiImageAsset{}).
+			Where("task_id = ? AND oss_key != '' AND deleted_at IS NULL", *asset.TaskId).
+			Count(&remaining)
+		if remaining == 0 {
+			h.db.Model(&model.AiImageTask{}).
+				Where("id = ? AND deleted_at IS NULL", *asset.TaskId).
+				Update("deleted_at", &now)
+		}
 	}
 	resp.SUCCESS(c, nil)
 }

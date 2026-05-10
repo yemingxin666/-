@@ -470,6 +470,24 @@ export const useEcomGalleryStore = defineStore('ecomGallery', () => {
     }
   }
 
+  // deleteAsset 删除单张图；若任务下已无图，后端会级联删任务，此时本地也移除任务
+  const deleteAsset = async (taskNo, assetNo) => {
+    try {
+      await httpDelete(`/api/ai-commerce/assets/${assetNo}`)
+      const task = items.value.find((t) => t.task_no === taskNo)
+      if (task && task.outputs) {
+        task.outputs = task.outputs.filter((o) => o.asset_no !== assetNo)
+        if (task.outputs.length === 0) {
+          items.value = items.value.filter((t) => t.task_no !== taskNo)
+          total.value = Math.max(0, total.value - 1)
+        }
+      }
+    } catch (e) {
+      console.error('[ecom] 删除图片失败:', e)
+      throw e
+    }
+  }
+
   // editTask 基于历史图库某张图 + prompt 编辑生成新图
   // 模型必须由前端传入（用户在 EcomTopNav 选中的模型，保持与生图模块一致）
   const editTask = async (taskNo, assetNo, prompt, modelName) => {
@@ -485,5 +503,5 @@ export const useEcomGalleryStore = defineStore('ecomGallery', () => {
     return res.data
   }
 
-  return { items, total, page, pageSize, moduleFilter, loading, fetchGallery, deleteTask, editTask }
+  return { items, total, page, pageSize, moduleFilter, loading, fetchGallery, deleteTask, deleteAsset, editTask }
 })

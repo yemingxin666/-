@@ -53,8 +53,9 @@
               :url="out.url"
               :ratio="task.ratio || '1:1'"
               :editable="true"
+              :confirm-delete-title="task.outputs.length > 1 ? '确认删除该图片？' : '确认删除该图片？删除后任务将被移除'"
               @edit="(payload) => openEditDialog(task, out, payload)"
-              @delete="galleryStore.deleteTask(task.task_no)"
+              @delete="onDeleteAsset(task, out)"
             />
           </div>
           <div v-else class="task-empty">暂无输出图片</div>
@@ -107,6 +108,19 @@ const openEditDialog = (task, out, payload) => {
     assetNo: out.asset_no,
   }
   editVisible.value = true
+}
+
+const onDeleteAsset = async (task, out) => {
+  if (!out?.asset_no) {
+    // 兜底：旧数据无 asset_no，回退为删任务
+    await galleryStore.deleteTask(task.task_no)
+    return
+  }
+  try {
+    await galleryStore.deleteAsset(task.task_no, out.asset_no)
+  } catch (e) {
+    ElMessage.error('删除失败：' + (e?.message || ''))
+  }
 }
 
 const onEditSubmitted = async () => {
