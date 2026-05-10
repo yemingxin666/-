@@ -46,6 +46,7 @@ const (
 	ModuleClone        = "clone"
 	ModuleRatioConvert = "ratio_convert"
 	ModuleTranslate    = "translate"
+	ModuleEdit         = "edit"
 )
 
 type CopywriteReq struct {
@@ -149,6 +150,108 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 		return nil, err
 	}
 	s.db.Model(task).Update("status", model.TaskStatusQueued)
+	task.Status = model.TaskStatusQueued
+	return task, nil
+}
+
+// SubmitEditTask 提交"基于原图 + prompt 编辑"任务
+// 不走模板系统：精简版 SubmitTask，只校验源 task/asset 归属并继承 ratio
+func (s *ImageService) SubmitEditTask(ctx context.Context, userID uint, req EditReq) (*model.AiImageTask, error) {
+	// 1. 参数清洗
+	prompt := strings.TrimSpace(req.Prompt)
+	if prompt == "" {
+		return nil, fmt.Errorf("prompt 不能为空")
+	}
+	// prompt 长度上限：限制 rune 数（兼容中英文），防止超大请求 / 异常计费
+	const maxPromptRunes = 1000
+	if r := []rune(prompt); len(r) > maxPromptRunes {
+		return nil, fmt.Errorf("prompt 过长，最多 %d 个字符", maxPromptRunes)
+	}
+	modelName := strings.TrimSpace(req.Model)
+	if modelName == "" {
+		return nil, fmt.Errorf("请先选择生图模型")
+	}
+
+	// 2. 校验源 task 归属，且必须为已成功的任务（避免编辑失败/进行中任务的脏 asset）
+	var srcTask model.AiImageTask
+	if err := s.db.Where("task_no = ? AND user_id = ? AND status = ? AND deleted_at IS NULL",
+		req.TaskNo, userID, model.TaskStatusSucceeded).
+		First(&srcTask).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("原任务不存在或无权访问")
+		}
+		return nil, err
+	}
+
+	// 3. 校验源 asset 归属、属于该 task、且为已生成图片
+	var srcAsset model.AiImageAsset
+	if err := s.db.Where("asset_no = ? AND user_id = ? AND kind = ? AND deleted_at IS NULL",
+		req.AssetNo, userID, model.AssetKindGenerated).First(&srcAsset).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("原图片不存在或无权访问")
+		}
+		return nil, err
+	}
+	if srcAsset.TaskId == nil || *srcAsset.TaskId != srcTask.Id {
+		return nil, fmt.Errorf("原图片与原任务不匹配")
+	}
+
+	// 4. 计费
+	creditCost, err := s.promptRepo.GetPriceByModel(modelName)
+	if err != nil {
+		return nil, fmt.Errorf("模型不可用: %w", err)
+	}
+	if err := s.deductCredit(ctx, userID, creditCost); err != nil {
+		return nil, fmt.Errorf("积分不足: %w", err)
+	}
+
+	// 5. 序列化 InputJSON：只保留编辑必需字段，便于 worker 取用
+	inputBytes, _ := json.Marshal(map[string]interface{}{
+		"prompt":           prompt,
+		"source_task_no":   srcTask.TaskNo,
+		"source_asset_no":  srcAsset.AssetNo,
+		"origin_ratio":     srcTask.Ratio,
+		"model":            modelName,
+	})
+	var inputJSON model.JSONMap
+	_ = json.Unmarshal(inputBytes, &inputJSON)
+
+	// 6. 创建任务（继承原图 ratio，模块标记为 edit）
+	taskNo := generateTaskNo()
+	ratio := srcTask.Ratio
+	if ratio == "" {
+		ratio = "1:1"
+	}
+	task := &model.AiImageTask{
+		TaskNo:     taskNo,
+		UserId:     userID,
+		Module:     ModuleEdit,
+		Ratio:      ratio,
+		InputJSON:  inputJSON,
+		Status:     model.TaskStatusPending,
+		Model:      modelName,
+		CreditCost: creditCost,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	if err := s.db.Create(task).Error; err != nil {
+		_ = s.refundCredit(ctx, userID, creditCost)
+		return nil, err
+	}
+
+	// 7. 入队
+	if err := s.enqueue(ctx, task.Id, taskNo); err != nil {
+		_ = s.refundCredit(ctx, userID, creditCost)
+		s.db.Model(task).Update("status", model.TaskStatusFailed)
+		return nil, err
+	}
+	// 入队成功后，task 状态必须从 pending 切到 queued，否则 dispatcher 的 CAS
+	// (queued→running) 会跳过本任务，造成扣费后永久卡住的孤儿任务
+	if err := s.db.Model(task).Update("status", model.TaskStatusQueued).Error; err != nil {
+		_ = s.refundCredit(ctx, userID, creditCost)
+		s.db.Model(task).Update("status", model.TaskStatusFailed)
+		return nil, fmt.Errorf("更新任务状态失败: %w", err)
+	}
 	task.Status = model.TaskStatusQueued
 	return task, nil
 }
@@ -294,16 +397,33 @@ func buildTaskItems(task *model.AiImageTask, assets []model.AiImageAsset) ([]Ima
 	return items, outputs, progress
 }
 
-// GalleryTask 历史图库列表项（含输出图片 URL）
+// GalleryTask 历史图库列表项（含输出图片 URL + asset_no）
 type GalleryTask struct {
 	model.AiImageTask
-	Outputs []string `json:"outputs"`
+	Outputs []OutputItem `json:"outputs"`
+}
+
+// OutputItem 历史图库单张输出图（携带 asset_no 以支持编辑功能）
+type OutputItem struct {
+	Url     string `json:"url"`
+	AssetNo string `json:"asset_no"`
+}
+
+// EditReq 图片编辑请求（基于原图 + prompt 重新生成）
+type EditReq struct {
+	TaskNo  string `json:"task_no" binding:"required"`
+	AssetNo string `json:"asset_no" binding:"required"`
+	Prompt  string `json:"prompt" binding:"required"`
+	Model   string `json:"model" binding:"required"` // 必填，前端传入用户选中的模型
 }
 
 // ListGallery 历史图库分页查询
+// 同时返回成功 + 进行中（queued/running）任务，让用户提交后立即看到进度条目；
+// failed 任务不展示，避免列表中堆积失败记录干扰浏览
 func (s *ImageService) ListGallery(ctx context.Context, userID uint, module string, page, pageSize int) ([]GalleryTask, int64, error) {
+	visibleStatuses := []string{model.TaskStatusSucceeded, model.TaskStatusQueued, model.TaskStatusRunning, model.TaskStatusPending}
 	query := s.db.Model(&model.AiImageTask{}).
-		Where("user_id = ? AND status = ? AND deleted_at IS NULL", userID, model.TaskStatusSucceeded)
+		Where("user_id = ? AND status IN ? AND deleted_at IS NULL", userID, visibleStatuses)
 	if module != "" {
 		query = query.Where("module = ?", module)
 	}
@@ -331,24 +451,28 @@ func (s *ImageService) ListGallery(ctx context.Context, userID uint, module stri
 		return nil, 0, err
 	}
 
-	// 按 task_id 分组
-	urlsByTaskID := make(map[uint][]string, len(tasks))
+	// 按 task_id 分组：保留 asset_no + oss_key，便于后续编辑功能精确定位单图
+	type rawOut struct {
+		AssetNo string
+		OssKey  string
+	}
+	rawByTaskID := make(map[uint][]rawOut, len(tasks))
 	for _, a := range assets {
 		if a.TaskId != nil {
-			urlsByTaskID[*a.TaskId] = append(urlsByTaskID[*a.TaskId], a.OssKey)
+			rawByTaskID[*a.TaskId] = append(rawByTaskID[*a.TaskId], rawOut{AssetNo: a.AssetNo, OssKey: a.OssKey})
 		}
 	}
 
 	result := make([]GalleryTask, len(tasks))
 	for i, t := range tasks {
-		urls := urlsByTaskID[t.Id]
-		s.signURLs(urls)
+		raws := rawByTaskID[t.Id]
+		outputs := make([]OutputItem, 0, len(raws))
+		for _, r := range raws {
+			outputs = append(outputs, OutputItem{Url: s.signSingleURL(r.OssKey), AssetNo: r.AssetNo})
+		}
 		result[i] = GalleryTask{
 			AiImageTask: t,
-			Outputs:     urls,
-		}
-		if result[i].Outputs == nil {
-			result[i].Outputs = []string{}
+			Outputs:     outputs,
 		}
 	}
 	return result, total, nil

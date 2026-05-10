@@ -23,14 +23,37 @@
         <div v-for="task in galleryStore.items" :key="task.task_no" class="gallery-item">
           <div class="task-meta">
             <el-tag size="small" type="primary" effect="light">{{ moduleLabel(task.module) }}</el-tag>
+            <el-tag v-if="isRunning(task)" size="small" type="warning" effect="light">
+              {{ task.status === 'running' ? '生成中' : '排队中' }}
+            </el-tag>
             <span class="task-date">{{ formatDate(task.created_at) }}</span>
           </div>
-          <div class="task-outputs" v-if="task.outputs?.length">
+          <!-- 运行中任务：占位框 + 进度条，按原图比例渲染（aria-live 让屏幕阅读器播报状态变化） -->
+          <div
+            v-if="isRunning(task)"
+            class="task-running"
+            :style="{ aspectRatio: ratioToCss(task.ratio) }"
+            role="status"
+            aria-live="polite"
+            :aria-label="`任务 ${task.status === 'running' ? '正在生成' : '排队中'}，进度 ${task.progress || 0}%`"
+          >
+            <el-icon class="running-spinner" :size="28" aria-hidden="true"><Loading /></el-icon>
+            <div class="running-text">{{ task.status === 'running' ? '正在生成…' : '排队中…' }}</div>
+            <el-progress
+              :percentage="task.progress || 0"
+              :show-text="true"
+              :stroke-width="6"
+              class="running-progress"
+            />
+          </div>
+          <div v-else-if="task.outputs?.length" class="task-outputs">
             <EcomResultCard
-              v-for="(url, i) in task.outputs"
-              :key="i"
-              :url="url"
-              @regenerate="() => {}"
+              v-for="(out, i) in task.outputs"
+              :key="out.asset_no || i"
+              :url="out.url"
+              :ratio="task.ratio || '1:1'"
+              :editable="true"
+              @edit="(payload) => openEditDialog(task, out, payload)"
               @delete="galleryStore.deleteTask(task.task_no)"
             />
           </div>
@@ -38,6 +61,15 @@
         </div>
       </div>
     </div>
+
+    <EcomEditDialog
+      v-model="editVisible"
+      :url="editPayload.url"
+      :ratio="editPayload.ratio"
+      :task-no="editPayload.taskNo"
+      :asset-no="editPayload.assetNo"
+      @submitted="onEditSubmitted"
+    />
 
     <div class="gallery-footer">
       <el-pagination
@@ -54,22 +86,99 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Loading } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useEcomGalleryStore } from '@/store/ecom'
 import EcomResultCard from '@/components/ecom/EcomResultCard.vue'
+import EcomEditDialog from '@/components/ecom/EcomEditDialog.vue'
 
 const galleryStore = useEcomGalleryStore()
 
-const moduleMap = { main_image: '主图设计', detail_page: '详情页', white_bg: '白底图', clone: '克隆设计', ratio_convert: '比例转换', translate: '图文翻译' }
+// 编辑弹窗状态
+const editVisible = ref(false)
+const editPayload = ref({ url: '', ratio: '1:1', taskNo: '', assetNo: '' })
+
+const openEditDialog = (task, out, payload) => {
+  editPayload.value = {
+    url: out.url,
+    ratio: payload?.ratio || task.ratio || '1:1',
+    taskNo: task.task_no,
+    assetNo: out.asset_no,
+  }
+  editVisible.value = true
+}
+
+const onEditSubmitted = async () => {
+  // 后端任务异步执行，刷新列表后新任务以 queued/running 态出现在首位
+  // 轮询由 watch(hasRunning) 自动启动，无需手动调用
+  galleryStore.page = 1
+  await galleryStore.fetchGallery()
+}
+
+const moduleMap = { main_image: '主图设计', detail_page: '详情页', white_bg: '白底图', clone: '克隆设计', ratio_convert: '比例转换', translate: '图文翻译', edit: '图片编辑' }
 const moduleLabel = (m) => moduleMap[m] || m
 const formatDate = (t) => t ? new Date(t).toLocaleDateString('zh-CN') : ''
+const isRunning = (t) => ['queued', 'running', 'pending'].includes(t.status)
+const ratioToCss = (r) => (r || '1:1').replace(':', '/')
 
 const onModuleChange = () => {
   galleryStore.page = 1
   galleryStore.fetchGallery()
 }
 
+// 轮询：watch hasRunning 自动启停，递归 setTimeout 防请求堆积，连续失败 5 次自动停
+const POLL_INTERVAL = 4000
+const MAX_POLL_FAIL = 5
+let pollTimer = null
+let polling = false           // 防止 fetch 未返回时再次发起
+let pollFailCount = 0
+
+const hasRunning = computed(() => galleryStore.items.some(isRunning))
+
+const stopPolling = () => {
+  if (pollTimer) { clearTimeout(pollTimer); pollTimer = null }
+  polling = false
+}
+
+const scheduleNextPoll = () => {
+  if (!hasRunning.value) { stopPolling(); return }
+  pollTimer = setTimeout(runPoll, POLL_INTERVAL)
+}
+
+const runPoll = async () => {
+  if (polling) return
+  polling = true
+  try {
+    await galleryStore.fetchGallery({ silent: true })
+    pollFailCount = 0
+  } catch (e) {
+    pollFailCount += 1
+    if (pollFailCount >= MAX_POLL_FAIL) {
+      stopPolling()
+      ElMessage.error('任务进度刷新失败，请检查网络后重试')
+      return
+    }
+  } finally {
+    polling = false
+  }
+  scheduleNextPoll()
+}
+
+const startPolling = () => {
+  if (pollTimer || polling) return
+  pollFailCount = 0
+  scheduleNextPoll()
+}
+
+// 跟随 hasRunning 自动启停：覆盖 tab 切换、分页、提交后等场景
+watch(hasRunning, (running) => {
+  if (running) startPolling()
+  else stopPolling()
+})
+
 onMounted(() => galleryStore.fetchGallery())
+onBeforeUnmount(stopPolling)
 </script>
 
 <style scoped>
@@ -148,6 +257,24 @@ onMounted(() => galleryStore.fetchGallery())
 .task-outputs:has(> *:nth-child(2)) { grid-template-columns: 1fr 1fr; }
 
 .task-empty { font-size: 13px; color: var(--text-secondary); text-align: center; padding: 12px 0; }
+
+.task-running {
+  width: 100%;
+  background: var(--gray-btn-bg);
+  border: 1px dashed var(--theme-border-primary);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  color: var(--text-secondary);
+}
+.running-spinner { animation: spin 1s linear infinite; color: var(--el-color-primary); }
+.running-text { font-size: 12px; }
+.running-progress { width: 80%; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 .gallery-empty {
   display: flex;

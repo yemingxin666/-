@@ -45,6 +45,7 @@ func (h *ImageHandler) RegisterRoutes() {
 		group.POST("/clone-designs", h.GenerateImage(aicommerce.ModuleClone))
 		group.POST("/ratio-conversions", h.GenerateImage(aicommerce.ModuleRatioConvert))
 		group.POST("/image-text-translations", h.GenerateImage(aicommerce.ModuleTranslate))
+		group.POST("/edit", h.EditImage)
 		group.GET("/tasks/:task_no", h.GetTask)
 		group.GET("/tasks/:task_no/events", h.TaskEvents)
 		group.DELETE("/tasks/:task_no", h.DeleteTask)
@@ -82,6 +83,33 @@ func (h *ImageHandler) GenerateImage(module string) gin.HandlerFunc {
 			"credit_cost": task.CreditCost,
 		})
 	}
+}
+
+// EditImage 基于历史图库某张图 + 用户 prompt 编辑生成新图
+// 新建独立任务，作为新条目出现在历史图库；比例沿用原图
+func (h *ImageHandler) EditImage(c *gin.Context) {
+	userID := h.getLoginUserID(c)
+	if userID == 0 {
+		resp.ERROR(c, "未登录")
+		return
+	}
+
+	var req aicommerce.EditReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.ERROR(c, "参数错误: "+err.Error())
+		return
+	}
+
+	task, err := h.service.SubmitEditTask(c.Request.Context(), userID, req)
+	if err != nil {
+		resp.ERROR(c, err.Error())
+		return
+	}
+	resp.SUCCESS(c, gin.H{
+		"task_no":     task.TaskNo,
+		"status":      task.Status,
+		"credit_cost": task.CreditCost,
+	})
 }
 
 // UploadAsset 上传参考图片到 OSS，写入 DB，返回 asset_no
@@ -211,10 +239,16 @@ func (h *ImageHandler) DeleteTask(c *gin.Context) {
 	userID := h.getLoginUserID(c)
 	taskNo := c.Param("task_no")
 
-	result := h.db.Where("task_no = ? AND user_id = ?", taskNo, userID).
-		UpdateColumn("deleted_at", "NOW()")
-	if result.Error != nil || result.RowsAffected == 0 {
-		resp.ERROR(c, "删除失败")
+	now := time.Now()
+	result := h.db.Model(&model.AiImageTask{}).
+		Where("task_no = ? AND user_id = ? AND deleted_at IS NULL", taskNo, userID).
+		Update("deleted_at", &now)
+	if result.Error != nil {
+		resp.ERROR(c, "删除失败: "+result.Error.Error())
+		return
+	}
+	if result.RowsAffected == 0 {
+		resp.ERROR(c, "任务不存在或已删除")
 		return
 	}
 	resp.SUCCESS(c, nil)

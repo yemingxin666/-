@@ -55,6 +55,7 @@ const (
 	ModuleClone        = "clone"
 	ModuleRatioConvert = "ratio_convert"
 	ModuleTranslate    = "translate"
+	ModuleEdit         = "edit"
 )
 
 // JSONMap 用于 JSON 类型字段的序列化

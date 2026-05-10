@@ -100,6 +100,9 @@ func updateProgress(db *gorm.DB, task *model.AiImageTask, progress int) {
 	db.Model(task).Update("progress", progress)
 }
 
+// Deprecated: 此函数仅拼接公网 URL，不做签名。私有 OSS bucket 下上游 API 拉取会 403。
+// 新代码请使用 resolveAssetURLs(...) 获取带签名的可访问 URL。
+// 保留是为了兼容老 chain（clone/white_bg/ratio_convert/translate），同样存在风险，应逐步迁移。
 func signedURL(ossKey string, cfg aicommerce.Config) string {
 	return fmt.Sprintf("https://%s.oss-cn-hangzhou.aliyuncs.com/%s", cfg.OSSBucket, ossKey)
 }

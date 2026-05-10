@@ -130,6 +130,13 @@ func (d *Dispatcher) execute(ctx context.Context, taskID uint) {
 		execErr = chains.RunRatioConvert(ctx, d.db, imgClient, uploader, d.cfg, &task)
 	case model.ModuleTranslate:
 		execErr = chains.RunTranslate(ctx, d.db, d.baiduOCR, d.baiduTrans, d.cfg, &task)
+	case model.ModuleEdit:
+		imgClient, err := d.resolveImageClient(ctx, &task)
+		if err != nil {
+			execErr = err
+			break
+		}
+		execErr = chains.RunEdit(ctx, d.db, imgClient, uploader, d.cfg, &task)
 	default:
 		execErr = nil
 	}
@@ -201,7 +208,7 @@ func (d *Dispatcher) resolveImageClient(ctx context.Context, task *model.AiImage
 
 func requiredImageCapability(module string) string {
 	switch module {
-	case model.ModuleMainImage, model.ModuleDetailPage, model.ModuleClone, model.ModuleRatioConvert:
+	case model.ModuleMainImage, model.ModuleDetailPage, model.ModuleClone, model.ModuleRatioConvert, model.ModuleEdit:
 		return "img2img"
 	default:
 		return ""

@@ -293,10 +293,97 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
   }
 
   // 历史操作（仅作用于会话内存中的历史结果，不动当前任务）
-  const removeHistory = (taskNo) => {
-    history.value = history.value.filter(h => h.task_no !== taskNo)
+  // 最近一次删除快照，用于撤销恢复（仅保留最后一次，新删除会覆盖旧快照）
+  const lastDeleteAction = ref(null)
+
+  // 从指定 batch 删除单张图。key 为 image_type 字符串（items 模式）或数字 index（outputs 模式）。
+  // 删除前快照位置信息；若 batch 删空，自动整组移除并记录 batch 索引以便撤销时整体恢复。
+  const deleteHistoryItem = (taskNo, key, isOutput = false) => {
+    const batchIdx = history.value.findIndex(h => h.task_no === taskNo)
+    if (batchIdx < 0) return
+    const batch = history.value[batchIdx]
+    let removedItem = null
+    let removedIndex = -1
+    if (isOutput) {
+      removedIndex = typeof key === 'number' ? key : Number(key)
+      if (removedIndex < 0 || removedIndex >= (batch.outputs || []).length) return
+      removedItem = batch.outputs[removedIndex]
+      batch.outputs.splice(removedIndex, 1)
+    } else {
+      removedIndex = (batch.items || []).findIndex(i => i.image_type === key)
+      if (removedIndex < 0) return
+      removedItem = batch.items[removedIndex]
+      batch.items.splice(removedIndex, 1)
+    }
+    // batch 删空：整体移除并记入快照（用于撤销恢复）
+    let removedBatch = null
+    let removedBatchIndex = -1
+    const remaining = (batch.items?.length || 0) + (batch.outputs?.length || 0)
+    if (remaining === 0) {
+      removedBatch = batch
+      removedBatchIndex = batchIdx
+      history.value.splice(batchIdx, 1)
+    }
+    lastDeleteAction.value = {
+      type: 'item',
+      ts: Date.now(),
+      data: { taskNo, isOutput, removedItem, removedIndex, removedBatch, removedBatchIndex },
+    }
   }
-  const clearHistory = () => { history.value = [] }
+
+  // 整组移除：先快照 batch 与原索引
+  const removeHistory = (taskNo) => {
+    const idx = history.value.findIndex(h => h.task_no === taskNo)
+    if (idx < 0) return
+    const batch = history.value[idx]
+    history.value.splice(idx, 1)
+    lastDeleteAction.value = {
+      type: 'batch',
+      ts: Date.now(),
+      data: { batch, index: idx },
+    }
+  }
+
+  // 清空全部：先快照
+  const clearHistory = () => {
+    if (!history.value.length) return
+    const snapshot = history.value.slice()
+    history.value = []
+    lastDeleteAction.value = {
+      type: 'all',
+      ts: Date.now(),
+      data: { batches: snapshot },
+    }
+  }
+
+  // 撤销最近一次删除；超时（>10s）的快照视为已失效
+  const undoLastDelete = () => {
+    const action = lastDeleteAction.value
+    if (!action) return false
+    if (Date.now() - action.ts > 10000) { lastDeleteAction.value = null; return false }
+    if (action.type === 'item') {
+      const { taskNo, isOutput, removedItem, removedIndex, removedBatch, removedBatchIndex } = action.data
+      // 若 batch 已被整体移除，先恢复 batch 容器
+      if (removedBatch && removedBatchIndex >= 0) {
+        history.value.splice(removedBatchIndex, 0, removedBatch)
+      }
+      const batch = history.value.find(h => h.task_no === taskNo)
+      if (batch) {
+        if (isOutput) {
+          batch.outputs.splice(removedIndex, 0, removedItem)
+        } else {
+          batch.items.splice(removedIndex, 0, removedItem)
+        }
+      }
+    } else if (action.type === 'batch') {
+      const { batch, index } = action.data
+      history.value.splice(Math.min(index, history.value.length), 0, batch)
+    } else if (action.type === 'all') {
+      history.value = action.data.batches.slice()
+    }
+    lastDeleteAction.value = null
+    return true
+  }
 
   const resumeIfPending = async () => {
     const raw = localStorage.getItem('ecom_pending_task')
@@ -346,7 +433,7 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
     }
   }
 
-  return { currentTask, outputs, items, history, isRunning, isDone, submittedRatio, submitTask, startPolling, stopPolling, reset, resumeIfPending, removeHistory, clearHistory }
+  return { currentTask, outputs, items, history, isRunning, isDone, submittedRatio, submitTask, startPolling, stopPolling, reset, resumeIfPending, removeHistory, clearHistory, deleteHistoryItem, undoLastDelete, lastDeleteAction }
 })
 
 export const useEcomGalleryStore = defineStore('ecomGallery', () => {
@@ -357,8 +444,10 @@ export const useEcomGalleryStore = defineStore('ecomGallery', () => {
   const moduleFilter = ref('')
   const loading = ref(false)
 
-  const fetchGallery = async () => {
-    loading.value = true
+  // silent: 轮询时使用，不切换 loading 态，避免列表闪烁
+  const fetchGallery = async (opts = {}) => {
+    const silent = opts && opts.silent
+    if (!silent) loading.value = true
     try {
       const params = { page: page.value, page_size: pageSize.value }
       if (moduleFilter.value) params.module = moduleFilter.value
@@ -366,7 +455,7 @@ export const useEcomGalleryStore = defineStore('ecomGallery', () => {
       items.value = res.data.items
       total.value = res.data.total
     } finally {
-      loading.value = false
+      if (!silent) loading.value = false
     }
   }
 
@@ -381,5 +470,20 @@ export const useEcomGalleryStore = defineStore('ecomGallery', () => {
     }
   }
 
-  return { items, total, page, pageSize, moduleFilter, loading, fetchGallery, deleteTask }
+  // editTask 基于历史图库某张图 + prompt 编辑生成新图
+  // 模型必须由前端传入（用户在 EcomTopNav 选中的模型，保持与生图模块一致）
+  const editTask = async (taskNo, assetNo, prompt, modelName) => {
+    const res = await httpPost('/api/ai-commerce/edit', {
+      task_no: taskNo,
+      asset_no: assetNo,
+      prompt,
+      model: modelName,
+    })
+    if (res.code !== 0) throw new Error(res.message || '编辑失败')
+    // 联动扣减算力，与 useEcomTaskStore.submitTask 保持一致
+    useEcomConfigStore().deductPower(res.data?.credit_cost || 0)
+    return res.data
+  }
+
+  return { items, total, page, pageSize, moduleFilter, loading, fetchGallery, deleteTask, editTask }
 })

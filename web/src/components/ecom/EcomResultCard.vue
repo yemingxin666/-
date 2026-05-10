@@ -44,26 +44,38 @@
 
     <!-- 独立操作工具栏：图片下方常驻条带，永不与图片争空间，永不被裁切 -->
     <div v-if="stickyUrl && status !== 'failed'" class="card-toolbar">
-      <button class="tool-btn" @click="download" title="下载">
+      <button class="tool-btn" @click="download" title="下载" aria-label="下载图片">
         <el-icon><Download /></el-icon>
       </button>
-      <button class="tool-btn" @click="emit('regenerate', props.imageType)" title="重新生成">
+      <button v-if="editable" class="tool-btn" @click="emit('edit', { url: stickyUrl, ratio: props.ratio })" title="编辑" aria-label="编辑该图片">
+        <el-icon><Edit /></el-icon>
+      </button>
+      <button v-else class="tool-btn" @click="emit('regenerate', props.imageType)" title="重新生成" aria-label="重新生成该图片">
         <el-icon><Refresh /></el-icon>
       </button>
-      <el-popconfirm title="删除此任务的全部图片？" @confirm="emit('delete')">
+      <el-popconfirm
+        v-if="confirmDelete"
+        :title="confirmDeleteTitle"
+        confirm-button-text="删除"
+        cancel-button-text="取消"
+        @confirm="emit('delete')"
+      >
         <template #reference>
-          <button class="tool-btn tool-btn-danger" title="删除">
+          <button class="tool-btn tool-btn-danger" title="删除" aria-label="删除该图片">
             <el-icon><Delete /></el-icon>
           </button>
         </template>
       </el-popconfirm>
+      <button v-else class="tool-btn tool-btn-danger" title="删除" aria-label="删除该图片" @click="emit('delete')">
+        <el-icon><Delete /></el-icon>
+      </button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { Download, Refresh, Delete, CircleCloseFilled } from '@element-plus/icons-vue'
+import { Download, Refresh, Edit, Delete, CircleCloseFilled } from '@element-plus/icons-vue'
 
 const props = defineProps({
   url: { type: String, default: null },
@@ -73,20 +85,41 @@ const props = defineProps({
   phase: { type: String, default: '' },
   imageType: { type: String, default: '' },
   ratio: { type: String, default: '1:1' },
+  // 历史图库走撤销机制（无需 popconfirm）；当前任务区域走二次确认避免误删
+  confirmDelete: { type: Boolean, default: true },
+  confirmDeleteTitle: { type: String, default: '确认删除该图片？' },
+  // 是否启用"编辑"模式（仅历史图库需要；其他场景保持"重新生成"按钮）
+  editable: { type: Boolean, default: false },
 })
 
 // "16:9" → "16/9"，CSS aspect-ratio 语法
 const cssRatio = computed(() => props.ratio.replace(':', '/'))
-const emit = defineEmits(['regenerate', 'delete'])
+const emit = defineEmits(['regenerate', 'delete', 'edit'])
 
 // 粘性 URL：一旦获得 url，即使后续轮询暂时返回 null/undefined 也保留显示
 // 防止已完成的图片在新一轮轮询时闪回加载态
 const stickyUrl = ref(props.url || null)
+
+// 比较 URL 的 path 部分（忽略签名 query 参数）：
+// 后端每次轮询都对 OSS 重新签名，会导致 query 不同但指向同一图片，
+// 直接赋值会让浏览器重新请求图片造成闪屏
+const urlPath = (u) => {
+  if (!u) return ''
+  const i = u.indexOf('?')
+  return i >= 0 ? u.slice(0, i) : u
+}
+
 watch(
   () => props.url,
   (val) => {
-    if (val) stickyUrl.value = val
-    else if (props.status === 'failed') stickyUrl.value = null
+    if (val) {
+      // 仅当指向不同对象时才更新，避免新签名导致闪屏
+      if (urlPath(val) !== urlPath(stickyUrl.value)) {
+        stickyUrl.value = val
+      }
+    } else if (props.status === 'failed') {
+      stickyUrl.value = null
+    }
   }
 )
 // status 变为 failed 时清空粘性 URL，让失败态正常显示
