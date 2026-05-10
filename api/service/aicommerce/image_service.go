@@ -104,9 +104,23 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 	if modelName == "" {
 		modelName = s.cfg.SiliconFlowModel
 	}
-	creditCost, err := s.promptRepo.GetPriceByModel(modelName)
+	unitPrice, err := s.promptRepo.GetPriceByModel(modelName)
 	if err != nil {
 		return nil, err
+	}
+	// 白底图不走文生图模型，按 rembg 固定单价 × 参考图张数计费（每张扣 rembg 单价）
+	// 其他模块按"一次任务一张图"收单张费用
+	creditCost := unitPrice
+	if req.Module == ModuleWhiteBg {
+		rembgPrice, perr := s.promptRepo.GetPriceByModel("rembg")
+		if perr != nil || rembgPrice <= 0 {
+			rembgPrice = 5 // 兜底：与 migration 初始值一致
+		}
+		n := len(req.ReferenceAssets)
+		if n == 0 {
+			return nil, fmt.Errorf("请上传至少 1 张参考图")
+		}
+		creditCost = rembgPrice * n
 	}
 
 	// 2. 扣减算力（调用 GeeKAI 现有机制）
@@ -740,8 +754,9 @@ func splitImageTypes(imageType string) []string {
 			result = append(result, t)
 		}
 	}
-	if len(result) == 0 {
-		return []string{imageType}
-	}
+	// 空输入返回空切片；buildTaskItems 依赖 len==0 走 buildSyntheticItems 分支
+	// （white_bg / clone 等模块没有 image_type，需要按生成资产合成条目）。
+	// 原来这里有 `return []string{imageType}` 的兜底，会把空字符串包成 [""]，
+	// 导致 white_bg 任务成功后 items 里出现一条假 pending 卡片残留。
 	return result
 }

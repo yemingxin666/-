@@ -119,10 +119,14 @@ func (s AliYunOss) PutBase64(base64Img string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error decoding base64:%v", err)
 	}
-	objectKey := fmt.Sprintf("%d.png", time.Now().UnixMicro())
-	// 上传文件字节数据
-	err = s.bucket.PutObject(objectKey, bytes.NewReader(imageData))
-	if err != nil {
+	return s.PutBytes(imageData, ".png")
+}
+
+func (s AliYunOss) PutBytes(data []byte, ext string) (string, error) {
+	ext = normalizeExt(ext)
+	objectKey := fmt.Sprintf("%d%s", time.Now().UnixMicro(), ext)
+	if err := s.bucket.PutObject(objectKey, bytes.NewReader(data),
+		oss.ContentType(mimeByExt(ext))); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%s/%s", s.config.Domain, objectKey), nil

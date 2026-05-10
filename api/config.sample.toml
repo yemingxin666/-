@@ -113,3 +113,38 @@ TikaHost = "http://tika:9998"
   PrivateKey = "" # 商户私钥
   ApiURL = "https://pay.geekai.cn"
   Methods = ["alipay", "wxpay", "qqpay", "jdpay", "douyin", "paypal"] # 支持的支付方式
+
+# 电商 AI 生图模块配置（可选；留空则对应模块在调用时报错）
+[AiCommerce]
+  silicon_flow_base_url = "https://api.siliconflow.cn/v1"
+  silicon_flow_api_key  = ""
+  silicon_flow_model    = "Kwai-Kolors/Kolors"
+
+  tongyi_base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  tongyi_api_key  = ""
+  tongyi_model    = "qwen-turbo"
+
+  baidu_ocr_app_id      = ""
+  baidu_ocr_api_key     = ""
+  baidu_ocr_secret_key  = ""
+  baidu_translate_app_id = ""
+  baidu_translate_secret = ""
+
+  # 白底图抠图依赖（阿里云视觉智能 SegmentCommodity）
+  aliyun_vision_access_key_id     = ""
+  aliyun_vision_access_key_secret = ""
+  aliyun_vision_region            = "cn-shanghai"
+
+  # 跨区域 OSS 中转：业务 OSS 不在 cn-shanghai 时必开
+  aliyun_vision_relay_enabled       = false
+  aliyun_vision_relay_endpoint      = "oss-cn-shanghai.aliyuncs.com"
+  aliyun_vision_relay_access_key    = ""
+  aliyun_vision_relay_access_secret = ""
+  aliyun_vision_relay_bucket        = ""
+  aliyun_vision_relay_prefix        = "aic-vision-relay/"
+
+  queue_name         = "ai_commerce_tasks"
+  worker_concurrency = 3
+
+  oss_bucket     = ""
+  asset_url_ttl  = 3600

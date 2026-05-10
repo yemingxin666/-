@@ -129,12 +129,17 @@ func (s QiNiuOss) PutBase64(base64Img string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error decoding base64:%v", err)
 	}
-	objectKey := fmt.Sprintf("%d.png", time.Now().UnixMicro())
+	return s.PutBytes(imageData, ".png")
+}
+
+func (s QiNiuOss) PutBytes(data []byte, ext string) (string, error) {
+	ext = normalizeExt(ext)
+	objectKey := fmt.Sprintf("%d%s", time.Now().UnixMicro(), ext)
 	ret := storage.PutRet{}
-	extra := storage.PutExtra{}
-	// 上传文件字节数据
-	err = s.uploader.Put(context.Background(), &ret, s.putPolicy.UploadToken(s.mac), objectKey, bytes.NewReader(imageData), int64(len(imageData)), &extra)
-	if err != nil {
+	extra := storage.PutExtra{MimeType: mimeByExt(ext)}
+	if err := s.uploader.Put(context.Background(), &ret,
+		s.putPolicy.UploadToken(s.mac), objectKey,
+		bytes.NewReader(data), int64(len(data)), &extra); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%s/%s", s.config.Domain, ret.Key), nil

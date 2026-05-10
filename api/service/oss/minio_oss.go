@@ -8,6 +8,7 @@ package oss
 // * +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -122,14 +123,19 @@ func (s MiniOss) PutBase64(base64Img string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error decoding base64:%v", err)
 	}
-	objectKey := fmt.Sprintf("%d.png", time.Now().UnixMicro())
+	return s.PutBytes(imageData, ".png")
+}
+
+func (s MiniOss) PutBytes(data []byte, ext string) (string, error) {
+	ext = normalizeExt(ext)
+	objectKey := fmt.Sprintf("%d%s", time.Now().UnixMicro(), ext)
 	info, err := s.client.PutObject(
 		context.Background(),
 		s.config.Bucket,
 		objectKey,
-		strings.NewReader(string(imageData)),
-		int64(len(imageData)),
-		minio.PutObjectOptions{ContentType: "image/png"})
+		bytes.NewReader(data),
+		int64(len(data)),
+		minio.PutObjectOptions{ContentType: mimeByExt(ext)})
 	if err != nil {
 		return "", err
 	}

@@ -28,6 +28,45 @@ type AppConfig struct {
 	GeekPayConfig   EpayConfig   // GEEK 支付配置
 	WechatPayConfig WxPayConfig  // 微信支付渠道配置
 	TikaHost        string       // TiKa 服务器地址
+	AiCommerce      AiCommerceConfig // 电商 AI 生图模块配置（白底图 / 主图 / 详情页等）
+}
+
+// AiCommerceConfig 电商生图模块配置。
+// 字段语义见 service/aicommerce.Config，此处保持字段名一致以便直接拷贝。
+// 注：TOML 节名大小写不敏感匹配，[AiCommerce] 即可命中。
+type AiCommerceConfig struct {
+	SiliconFlowBaseURL string `toml:"silicon_flow_base_url"`
+	SiliconFlowAPIKey  string `toml:"silicon_flow_api_key"`
+	SiliconFlowModel   string `toml:"silicon_flow_model"`
+
+	TongyiBaseURL string `toml:"tongyi_base_url"`
+	TongyiAPIKey  string `toml:"tongyi_api_key"`
+	TongyiModel   string `toml:"tongyi_model"`
+
+	BaiduOCRAppID     string `toml:"baidu_ocr_app_id"`
+	BaiduOCRAPIKey    string `toml:"baidu_ocr_api_key"`
+	BaiduOCRSecretKey string `toml:"baidu_ocr_secret_key"`
+
+	BaiduTranslateAppID  string `toml:"baidu_translate_app_id"`
+	BaiduTranslateSecret string `toml:"baidu_translate_secret"`
+
+	AliyunVisionAccessKeyID     string `toml:"aliyun_vision_access_key_id"`
+	AliyunVisionAccessKeySecret string `toml:"aliyun_vision_access_key_secret"`
+	AliyunVisionRegion          string `toml:"aliyun_vision_region"`
+
+	// 跨区域 OSS 中转（当业务 OSS 与 vision region 不同时启用）
+	AliyunVisionRelayEnabled      bool   `toml:"aliyun_vision_relay_enabled"`
+	AliyunVisionRelayEndpoint     string `toml:"aliyun_vision_relay_endpoint"`
+	AliyunVisionRelayAccessKey    string `toml:"aliyun_vision_relay_access_key"`
+	AliyunVisionRelayAccessSecret string `toml:"aliyun_vision_relay_access_secret"`
+	AliyunVisionRelayBucket       string `toml:"aliyun_vision_relay_bucket"`
+	AliyunVisionRelayPrefix       string `toml:"aliyun_vision_relay_prefix"`
+
+	QueueName         string `toml:"queue_name"`
+	WorkerConcurrency int    `toml:"worker_concurrency"`
+
+	OSSBucket   string `toml:"oss_bucket"`
+	AssetURLTTL int    `toml:"asset_url_ttl"`
 }
 
 type RedisConfig struct {

@@ -451,15 +451,15 @@ func main() {
 			h.RegisterRoutes()
 		}),
 		fx.Provide(func(app *core.AppServer, db *gorm.DB, rdb *redis.Client, mgr *oss.UploaderManager) *handlerAicommerce.ImageHandler {
-			cfg := aicommerce.DefaultConfig()
+			cfg := buildAiCommerceConfig(app.Config)
 			svc := aicommerce.NewImageService(db, rdb, cfg, mgr.GetUploadHandler())
 			return handlerAicommerce.NewImageHandler(app, db, svc, mgr)
 		}),
 		fx.Invoke(func(s *core.AppServer, h *handlerAicommerce.ImageHandler) {
 			h.RegisterRoutes()
 		}),
-		fx.Provide(func(db *gorm.DB, rdb *redis.Client, mgr *oss.UploaderManager) *aicWorker.Dispatcher {
-			cfg := aicommerce.DefaultConfig()
+		fx.Provide(func(app *core.AppServer, db *gorm.DB, rdb *redis.Client, mgr *oss.UploaderManager) *aicWorker.Dispatcher {
+			cfg := buildAiCommerceConfig(app.Config)
 			return aicWorker.NewDispatcher(db, rdb, cfg, mgr)
 		}),
 		fx.Invoke(func(lc fx.Lifecycle, d *aicWorker.Dispatcher) {
@@ -501,4 +501,95 @@ func main() {
 		log.Fatal(err)
 	}
 
+}
+
+// buildAiCommerceConfig 从 AppConfig 构造电商生图模块运行配置。
+//
+// 为什么要做这一层合并：
+//   - aicommerce.Config 原本各路默认值只在 DefaultConfig() 里兜底，
+//     直接 DefaultConfig() 会丢 config.toml [AiCommerce] 节里填写的凭证；
+//   - OSSBucket 一定要有值，否则 white_bg chain 的参考图 URL 拼不出来；
+//     这里优先用 [AiCommerce] 节的 oss_bucket，没有时回退到 [OSS.AliYun].Bucket。
+func buildAiCommerceConfig(app *types.AppConfig) aicommerce.Config {
+	cfg := aicommerce.DefaultConfig()
+	ac := app.AiCommerce
+
+	// 覆盖默认值；空字符串表示用户没填，走 DefaultConfig 的兜底
+	if ac.SiliconFlowBaseURL != "" {
+		cfg.SiliconFlowBaseURL = ac.SiliconFlowBaseURL
+	}
+	if ac.SiliconFlowAPIKey != "" {
+		cfg.SiliconFlowAPIKey = ac.SiliconFlowAPIKey
+	}
+	if ac.SiliconFlowModel != "" {
+		cfg.SiliconFlowModel = ac.SiliconFlowModel
+	}
+	if ac.TongyiBaseURL != "" {
+		cfg.TongyiBaseURL = ac.TongyiBaseURL
+	}
+	if ac.TongyiAPIKey != "" {
+		cfg.TongyiAPIKey = ac.TongyiAPIKey
+	}
+	if ac.TongyiModel != "" {
+		cfg.TongyiModel = ac.TongyiModel
+	}
+	if ac.BaiduOCRAppID != "" {
+		cfg.BaiduOCRAppID = ac.BaiduOCRAppID
+	}
+	if ac.BaiduOCRAPIKey != "" {
+		cfg.BaiduOCRAPIKey = ac.BaiduOCRAPIKey
+	}
+	if ac.BaiduOCRSecretKey != "" {
+		cfg.BaiduOCRSecretKey = ac.BaiduOCRSecretKey
+	}
+	if ac.BaiduTranslateAppID != "" {
+		cfg.BaiduTranslateAppID = ac.BaiduTranslateAppID
+	}
+	if ac.BaiduTranslateSecret != "" {
+		cfg.BaiduTranslateSecret = ac.BaiduTranslateSecret
+	}
+	if ac.AliyunVisionAccessKeyID != "" {
+		cfg.AliyunVisionAccessKeyID = ac.AliyunVisionAccessKeyID
+	}
+	if ac.AliyunVisionAccessKeySecret != "" {
+		cfg.AliyunVisionAccessKeySecret = ac.AliyunVisionAccessKeySecret
+	}
+	if ac.AliyunVisionRegion != "" {
+		cfg.AliyunVisionRegion = ac.AliyunVisionRegion
+	}
+	// 跨区域中转：仅在显式启用时透传
+	cfg.AliyunVisionRelayEnabled = ac.AliyunVisionRelayEnabled
+	if ac.AliyunVisionRelayEndpoint != "" {
+		cfg.AliyunVisionRelayEndpoint = ac.AliyunVisionRelayEndpoint
+	}
+	if ac.AliyunVisionRelayAccessKey != "" {
+		cfg.AliyunVisionRelayAccessKey = ac.AliyunVisionRelayAccessKey
+	}
+	if ac.AliyunVisionRelayAccessSecret != "" {
+		cfg.AliyunVisionRelayAccessSecret = ac.AliyunVisionRelayAccessSecret
+	}
+	if ac.AliyunVisionRelayBucket != "" {
+		cfg.AliyunVisionRelayBucket = ac.AliyunVisionRelayBucket
+	}
+	if ac.AliyunVisionRelayPrefix != "" {
+		cfg.AliyunVisionRelayPrefix = ac.AliyunVisionRelayPrefix
+	}
+	if ac.QueueName != "" {
+		cfg.QueueName = ac.QueueName
+	}
+	if ac.WorkerConcurrency > 0 {
+		cfg.WorkerConcurrency = ac.WorkerConcurrency
+	}
+	if ac.AssetURLTTL > 0 {
+		cfg.AssetURLTTL = ac.AssetURLTTL
+	}
+
+	// OSSBucket：优先 [AiCommerce] 显式配置，回退到 [OSS.AliYun]
+	if ac.OSSBucket != "" {
+		cfg.OSSBucket = ac.OSSBucket
+	} else if app.OSS.AliYun.Bucket != "" {
+		cfg.OSSBucket = app.OSS.AliYun.Bucket
+	}
+
+	return cfg
 }

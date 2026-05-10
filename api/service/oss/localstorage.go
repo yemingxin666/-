@@ -90,12 +90,18 @@ func (s LocalStorage) PutBase64(base64Img string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error decoding base64:%v", err)
 	}
-	filePath, _ := utils.GenUploadPath(s.config.BasePath, "", ".png")
-	err = os.WriteFile(filePath, imageData, 0644)
-	if err != nil {
-		return "", fmt.Errorf("error writing to file:%v", err)
-	}
+	return s.PutBytes(imageData, ".png")
+}
 
+func (s LocalStorage) PutBytes(data []byte, ext string) (string, error) {
+	ext = normalizeExt(ext)
+	filePath, err := utils.GenUploadPath(s.config.BasePath, "", ext)
+	if err != nil {
+		return "", fmt.Errorf("error with generate file path: %v", err)
+	}
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return "", fmt.Errorf("error writing to file: %v", err)
+	}
 	return utils.GenUploadUrl(s.config.BasePath, s.config.BaseURL, filePath), nil
 }
 

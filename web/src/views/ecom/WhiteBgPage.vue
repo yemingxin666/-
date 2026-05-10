@@ -24,7 +24,7 @@
       </el-form>
     </div>
     <div class="panel-footer">
-      <EcomCreditBadge :estimated-cost="5" class="footer-credit" />
+      <EcomCreditBadge :estimated-cost="estimatedCost" class="footer-credit" />
       <el-tooltip
         :content="!assetNos.length ? '请先上传产品图片' : ''"
         :disabled="assetNos.length > 0"
@@ -67,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useEcomConfigStore, useEcomTaskStore } from '@/store/ecom'
 import EcomImageUploader from '@/components/ecom/EcomImageUploader.vue'
@@ -82,9 +82,13 @@ const assetNos = ref([])
 const ratio = ref('1:1')
 const productName = ref('')
 
+// 白底图按张计费：单价 5 算力/张，与后端 rembg 定价保持一致
+const WHITE_BG_UNIT_PRICE = 5
+const estimatedCost = computed(() => assetNos.value.length * WHITE_BG_UNIT_PRICE)
+
 const submit = async () => {
   if (!assetNos.value.length) { ElMessage.warning('请先上传产品图片'); return }
-  if (configStore.userPower < 5) { ElMessage.error('算力不足，请充值'); return }
+  if (configStore.userPower < estimatedCost.value) { ElMessage.error('算力不足，请充值'); return }
   try {
     await taskStore.submitTask('/api/ai-commerce/white-backgrounds', { module: 'white_bg', ratio: ratio.value, reference_assets: assetNos.value, product_name: productName.value, model: configStore.selectedModel })
   } catch (e) { ElMessage.error('提交失败：' + e.message) }

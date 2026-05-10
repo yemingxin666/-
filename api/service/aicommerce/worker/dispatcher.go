@@ -33,13 +33,34 @@ type Dispatcher struct {
 }
 
 func NewDispatcher(db *gorm.DB, rdb *redis.Client, cfg aicommerce.Config, uploadManager *oss.UploaderManager) *Dispatcher {
+	vision := provider.NewAliyunVision(cfg.AliyunVisionAccessKeyID, cfg.AliyunVisionAccessKeySecret, cfg.AliyunVisionRegion).
+		WithRelay(provider.RelayConfig{
+			Enabled:      cfg.AliyunVisionRelayEnabled,
+			Endpoint:     cfg.AliyunVisionRelayEndpoint,
+			AccessKey:    cfg.AliyunVisionRelayAccessKey,
+			AccessSecret: cfg.AliyunVisionRelayAccessSecret,
+			Bucket:       cfg.AliyunVisionRelayBucket,
+			Prefix:       cfg.AliyunVisionRelayPrefix,
+		})
+	// 启动时打印 relay 状态，方便排查"配置没生效"这类问题
+	if cfg.AliyunVisionRelayEnabled {
+		if vision.RelayActive() {
+			logger.Infof("[aicommerce] vision relay ACTIVE: bucket=%s endpoint=%s prefix=%s",
+				cfg.AliyunVisionRelayBucket, cfg.AliyunVisionRelayEndpoint, cfg.AliyunVisionRelayPrefix)
+		} else {
+			logger.Warnf("[aicommerce] vision relay ENABLED but config INCOMPLETE (missing endpoint/bucket/ak)；将直连 vision，跨区域 OSS 仍会 InvalidImage.RegionRecommend")
+		}
+	} else {
+		logger.Infof("[aicommerce] vision relay disabled；假定业务 OSS 与 vision region 同区域")
+	}
+
 	return &Dispatcher{
 		db:            db,
 		rdb:           rdb,
 		cfg:           cfg,
 		uploadManager: uploadManager,
 		tongyi:        provider.NewTongyi(cfg.TongyiBaseURL, cfg.TongyiAPIKey, cfg.TongyiModel),
-		vision:        provider.NewAliyunVision(cfg.AliyunVisionAccessKeyID, cfg.AliyunVisionAccessKeySecret),
+		vision:        vision,
 		baiduOCR:      provider.NewBaiduOCR(cfg.BaiduOCRAppID, cfg.BaiduOCRAPIKey, cfg.BaiduOCRSecretKey),
 		baiduTrans:    provider.NewBaiduTranslate(cfg.BaiduTranslateAppID, cfg.BaiduTranslateSecret),
 	}

@@ -11,7 +11,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// splitImageTypes 拆分逗号分隔的图片类型，过滤空白，保证与 SubmitTask 预检语义一致
+// splitImageTypes 拆分逗号分隔的图片类型，过滤空白，保证与 SubmitTask 预检语义一致。
+// 空输入返回空切片；调用方（main_image / detail_page chain）会在 len==0 时跳过循环。
 func splitImageTypes(imageType string) []string {
 	parts := strings.Split(imageType, ",")
 	result := make([]string, 0, len(parts))
@@ -19,9 +20,6 @@ func splitImageTypes(imageType string) []string {
 		if t := strings.TrimSpace(p); t != "" {
 			result = append(result, t)
 		}
-	}
-	if len(result) == 0 {
-		return []string{imageType}
 	}
 	return result
 }
