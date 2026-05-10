@@ -38,9 +38,19 @@
   </aside>
 
   <section class="result-panel">
-    <EcomProgressBar v-if="taskStore.currentTask" />
-    <div v-if="taskStore.outputs.length" class="result-grid">
-      <EcomResultCard v-for="(url, i) in taskStore.outputs" :key="i" :url="url" @regenerate="submit" @delete="taskStore.reset()" />
+    <div v-if="taskStore.outputs.length || taskStore.isRunning" class="result-grid">
+      <template v-if="taskStore.outputs.length">
+        <EcomResultCard v-for="(url, i) in taskStore.outputs" :key="i" :url="url" @regenerate="submit" @delete="taskStore.reset()" />
+      </template>
+      <EcomResultCard
+        v-else
+        :url="null"
+        :status="taskStore.currentTask?.status || 'pending'"
+        :progress="taskStore.currentTask?.progress || 0"
+        :ratio="taskStore.submittedRatio"
+        @regenerate="submit"
+        @delete="taskStore.reset()"
+      />
     </div>
     <EcomHistoryGroup />
     <div v-if="!taskStore.currentTask && !taskStore.outputs.length && !taskStore.history.length" class="result-empty">
@@ -63,7 +73,6 @@ import { useEcomConfigStore, useEcomTaskStore } from '@/store/ecom'
 import EcomImageUploader from '@/components/ecom/EcomImageUploader.vue'
 import EcomRatioPicker from '@/components/ecom/EcomRatioPicker.vue'
 import EcomCreditBadge from '@/components/ecom/EcomCreditBadge.vue'
-import EcomProgressBar from '@/components/ecom/EcomProgressBar.vue'
 import EcomResultCard from '@/components/ecom/EcomResultCard.vue'
 import EcomHistoryGroup from '@/components/ecom/EcomHistoryGroup.vue'
 

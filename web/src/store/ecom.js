@@ -157,6 +157,24 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
   const history = ref([])
   let pollTimer = null
 
+  // 合并轮询返回的 items：以 image_type 为键 in-place 更新已有项，
+  // 保护已 succeeded 项不被回退（防止后端临时丢字段导致前端闪烁）
+  const mergeItems = (oldItems, newItems) => {
+    if (!oldItems?.length) return newItems
+    const map = new Map(oldItems.map(i => [i.image_type, i]))
+    return newItems.map(n => {
+      const old = map.get(n.image_type)
+      if (!old) return n
+      // 已 succeeded 且有 url 的项：保留旧 url/status，仅同步无关字段
+      if (old.status === 'succeeded' && old.url) {
+        return { ...old, ...n, url: old.url, status: 'succeeded' }
+      }
+      // 其他情况：in-place 合并到旧对象，保持引用稳定
+      Object.assign(old, n)
+      return old
+    })
+  }
+
   // 把当前任务的结果快照存入历史（去重 by task_no）
   const archiveCurrent = () => {
     const taskNo = currentTask.value?.task_no
@@ -236,7 +254,9 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
         if (currentTask.value?.task_no !== taskNo) return // stale response guard
         if (res.code === 0) {
           Object.assign(currentTask.value, res.data)
-          items.value = res.data.items || []
+          // 合并而非整体替换 items：以 image_type 为键，保护已 succeeded 项不被回退
+          // 同时保留对象引用稳定性，避免每次轮询都让 ResultCard 闪烁
+          items.value = mergeItems(items.value, res.data.items || [])
           outputs.value = res.data.outputs || []
           if (res.data.status === 'succeeded') {
             archiveCurrent()

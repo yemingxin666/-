@@ -135,9 +135,7 @@
 
   <!-- 右侧结果区 -->
   <section class="result-panel">
-    <EcomProgressBar v-if="taskStore.currentTask" />
-
-    <!-- 当前任务结果 -->
+    <!-- 当前任务结果（每张图独立进度条，已内嵌 ResultCard 加载态） -->
     <div v-if="taskStore.items.length || taskStore.outputs.length" class="result-grid">
       <template v-if="taskStore.items.length">
         <EcomResultCard
@@ -147,6 +145,7 @@
           :label="item.label"
           :status="item.status"
           :progress="item.progress"
+          :phase="item.phase"
           :image-type="item.image_type"
           :ratio="taskStore.submittedRatio"
           @regenerate="(imageType) => retryOne(imageType)"
@@ -195,7 +194,6 @@ import EcomTypeChips from '@/components/ecom/EcomTypeChips.vue'
 import EcomPlatformSelect from '@/components/ecom/EcomPlatformSelect.vue'
 import EcomRatioPicker from '@/components/ecom/EcomRatioPicker.vue'
 import EcomCreditBadge from '@/components/ecom/EcomCreditBadge.vue'
-import EcomProgressBar from '@/components/ecom/EcomProgressBar.vue'
 import EcomResultCard from '@/components/ecom/EcomResultCard.vue'
 import EcomHistoryGroup from '@/components/ecom/EcomHistoryGroup.vue'
 import { useCopywriteProgress } from '@/composables/useCopywriteProgress'

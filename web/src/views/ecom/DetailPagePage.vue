@@ -132,8 +132,6 @@
   </aside>
 
   <section class="result-panel">
-    <EcomProgressBar v-if="taskStore.currentTask" />
-
     <div v-if="taskStore.items.length || taskStore.outputs.length" class="result-grid">
       <template v-if="taskStore.items.length">
         <EcomResultCard
@@ -143,6 +141,7 @@
           :label="item.label"
           :status="item.status"
           :progress="item.progress"
+          :phase="item.phase"
           :ratio="taskStore.submittedRatio"
           @regenerate="submit"
           @delete="taskStore.reset()"
@@ -189,7 +188,6 @@ import EcomTypeChips from '@/components/ecom/EcomTypeChips.vue'
 import EcomPlatformSelect from '@/components/ecom/EcomPlatformSelect.vue'
 import EcomRatioPicker from '@/components/ecom/EcomRatioPicker.vue'
 import EcomCreditBadge from '@/components/ecom/EcomCreditBadge.vue'
-import EcomProgressBar from '@/components/ecom/EcomProgressBar.vue'
 import EcomResultCard from '@/components/ecom/EcomResultCard.vue'
 import EcomHistoryGroup from '@/components/ecom/EcomHistoryGroup.vue'
 import { useCopywriteProgress } from '@/composables/useCopywriteProgress'

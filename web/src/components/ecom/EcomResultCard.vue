@@ -1,9 +1,9 @@
 <template>
   <div class="result-card" :class="{ 'is-failed': status === 'failed' }" :style="{ '--card-ratio': cssRatio }">
     <div class="card-image-wrap">
-      <!-- 成功：显示图片 + 标签徽章 + 操作覆盖层 -->
-      <template v-if="url && status !== 'failed'">
-        <el-image :src="url" fit="cover" class="result-img" :preview-src-list="[url]" preview-teleported />
+      <!-- 成功：显示图片 + 标签徽章 + 操作覆盖层（粘性显示，使用 stickyUrl 避免闪烁） -->
+      <template v-if="stickyUrl && status !== 'failed'">
+        <el-image :src="stickyUrl" fit="cover" class="result-img" :preview-src-list="[stickyUrl]" preview-teleported />
         <div v-if="label" class="label-badge">{{ label }}</div>
         <div class="card-overlay">
           <el-button circle @click="download" title="下载">
@@ -38,7 +38,19 @@
         </el-skeleton>
         <div class="skeleton-info">
           <div class="skeleton-label">{{ label || '生成中...' }}</div>
-          <div class="skeleton-phase">{{ status === 'running' ? '生图中...' : '排队中...' }}</div>
+          <el-progress
+            class="skeleton-progress"
+            :percentage="displayProgress"
+            :stroke-width="6"
+            :show-text="false"
+            :indeterminate="status !== 'running'"
+            :duration="2"
+            :color="progressColor"
+          />
+          <div class="skeleton-phase-row">
+            <span class="skeleton-phase">{{ phaseText }}</span>
+            <span v-if="status === 'running'" class="skeleton-percent">{{ displayProgress }}%</span>
+          </div>
         </div>
       </div>
 
@@ -47,7 +59,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Download, Refresh, Delete, CircleCloseFilled } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -55,6 +67,7 @@ const props = defineProps({
   label: { type: String, default: '' },
   status: { type: String, default: 'succeeded' },
   progress: { type: Number, default: 0 },
+  phase: { type: String, default: '' },
   imageType: { type: String, default: '' },
   ratio: { type: String, default: '1:1' },
 })
@@ -62,6 +75,50 @@ const props = defineProps({
 // "16:9" → "16/9"，CSS aspect-ratio 语法
 const cssRatio = computed(() => props.ratio.replace(':', '/'))
 const emit = defineEmits(['regenerate', 'delete'])
+
+// 粘性 URL：一旦获得 url，即使后续轮询暂时返回 null/undefined 也保留显示
+// 防止已完成的图片在新一轮轮询时闪回加载态
+const stickyUrl = ref(props.url || null)
+watch(
+  () => props.url,
+  (val) => {
+    if (val) stickyUrl.value = val
+    else if (props.status === 'failed') stickyUrl.value = null
+  }
+)
+// status 变为 failed 时清空粘性 URL，让失败态正常显示
+watch(
+  () => props.status,
+  (s) => {
+    if (s === 'failed') stickyUrl.value = null
+  }
+)
+
+// 加载态显示的进度：running 用真实值，否则用 0（条带动画依赖 indeterminate）
+const displayProgress = computed(() => {
+  const p = Number(props.progress) || 0
+  return Math.max(0, Math.min(99, Math.round(p)))
+})
+
+// phase 文案：优先取后端 phase，否则按 status 回退
+const phaseText = computed(() => {
+  const phaseMap = {
+    pending: '等待中',
+    rendering: '渲染中...',
+    generating: '生图中...',
+    uploading: '上传中...',
+  }
+  if (props.phase && phaseMap[props.phase]) return phaseMap[props.phase]
+  if (props.status === 'running') return '生图中...'
+  return '排队中...'
+})
+
+// phase 渐变色：pending 灰 → generating/rendering 蓝 → uploading 绿
+const progressColor = computed(() => {
+  if (props.phase === 'uploading') return '#67c23a'
+  if (props.phase === 'pending' || props.status !== 'running') return '#909399'
+  return '#409eff'
+})
 
 // MIME → 扩展名映射，按 blob.type 推断最可靠
 const MIME_EXT = {
@@ -222,13 +279,24 @@ const download = async () => {
 }
 .skeleton-progress {
   width: 100%;
+  margin-bottom: 4px;
 }
 :deep(.skeleton-progress .el-progress-bar__outer) {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.25);
 }
-.skeleton-phase {
+.skeleton-phase-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.85);
+}
+.skeleton-phase { font-size: 11px; color: rgba(255, 255, 255, 0.85); }
+.skeleton-percent {
+  font-size: 11px;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
 /* 失败态 */
