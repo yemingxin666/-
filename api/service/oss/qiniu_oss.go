@@ -110,6 +110,9 @@ func (s QiNiuOss) PutUrlFile(fileURL string, ext string, useProxy bool) (string,
 	if ext == "" {
 		ext = filepath.Ext(parse.Path)
 	}
+	if ext != "" && !strings.HasPrefix(ext, ".") {
+		ext = "." + ext
+	}
 	key := fmt.Sprintf("%d%s", time.Now().UnixMicro(), ext)
 	ret := storage.PutRet{}
 	extra := storage.PutExtra{}

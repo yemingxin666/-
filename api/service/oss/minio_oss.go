@@ -70,6 +70,9 @@ func (s MiniOss) PutUrlFile(fileURL string, ext string, useProxy bool) (string, 
 	if ext == "" {
 		ext = filepath.Ext(parse.Path)
 	}
+	if ext != "" && !strings.HasPrefix(ext, ".") {
+		ext = "." + ext
+	}
 	filename := fmt.Sprintf("%d%s", time.Now().UnixMicro(), ext)
 	info, err := s.client.PutObject(
 		context.Background(),

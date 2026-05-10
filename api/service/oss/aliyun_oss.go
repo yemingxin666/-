@@ -102,6 +102,9 @@ func (s AliYunOss) PutUrlFile(fileURL string, ext string, useProxy bool) (string
 	if ext == "" {
 		ext = filepath.Ext(parse.Path)
 	}
+	if ext != "" && !strings.HasPrefix(ext, ".") {
+		ext = "." + ext
+	}
 	objectKey := fmt.Sprintf("%d%s", time.Now().UnixMicro(), ext)
 	// 上传文件字节数据
 	err = s.bucket.PutObject(objectKey, bytes.NewReader(fileData))
