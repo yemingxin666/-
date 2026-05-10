@@ -23,6 +23,11 @@
               placeholder="【商品品类】&#10;&#10;【核心卖点】&#10;&#10;【补充描述】"
             />
           </div>
+          <EcomSizeChartCard
+            v-if="form.analysis?.size_chart"
+            :data="form.analysis.size_chart"
+            @delete="handleSizeChartDelete"
+          />
           <el-tooltip
             :content="form.reference_assets.length ? '' : '请先上传参考图'"
             :disabled="form.reference_assets.length > 0"
@@ -190,6 +195,7 @@ import EcomRatioPicker from '@/components/ecom/EcomRatioPicker.vue'
 import EcomCreditBadge from '@/components/ecom/EcomCreditBadge.vue'
 import EcomResultCard from '@/components/ecom/EcomResultCard.vue'
 import EcomHistoryGroup from '@/components/ecom/EcomHistoryGroup.vue'
+import EcomSizeChartCard from '@/components/ecom/EcomSizeChartCard.vue'
 import { useCopywriteProgress } from '@/composables/useCopywriteProgress'
 import { formatAnalysisToText, getStyleDesc } from '@/utils/ecomFormat'
 
@@ -214,7 +220,12 @@ const selectedTypes = ref(['hero_visual'])
 const copywriting = ref(false)
 
 watch(() => form.value.selling_points, () => {
-  if (!copywriting.value) form.value.analysis = null
+  if (copywriting.value) return
+  // 用户编辑文本时清空与文本关联的分析结果，但保留独立结构化数据 size_chart
+  if (form.value.analysis) {
+    const preserved = form.value.analysis.size_chart
+    form.value.analysis = preserved ? { size_chart: preserved } : null
+  }
 })
 
 const sortedTypes = computed(() => {
@@ -246,7 +257,8 @@ const copywrite = async () => {
     const { content, analysis } = await configStore.generateCopywriting(
       form.value.product_name,
       form.value.selling_points,
-      form.value.reference_assets
+      form.value.reference_assets,
+      selectedTypes.value.join(',')
     )
     if (analysis) {
       if (!form.value.product_name) form.value.product_name = analysis.product_name || ''
@@ -254,13 +266,28 @@ const copywrite = async () => {
       form.value.analysis = analysis
     }
     form.value.selling_points = formatAnalysisToText(analysis, content)
-    ElMessage.success('已根据参考图生成卖点')
+
+    // 反馈：根据 size_chart 识别情况给不同提示
+    if (analysis?.size_chart) {
+      ElMessage.success('已识别参考图中的尺码表，将用于尺码图生成')
+    } else if (selectedTypes.value.includes('size_capacity')) {
+      ElMessage.info('未在参考图中检测到尺码表，将基于通用规格生成')
+    } else {
+      ElMessage.success('已根据参考图生成卖点')
+    }
   } catch (e) {
     ElMessage.error('代写失败：' + e.message)
   } finally {
     copywriting.value = false
     finishProgress()
   }
+}
+
+const handleSizeChartDelete = () => {
+  if (!form.value.analysis) return
+  const { size_chart, ...rest } = form.value.analysis
+  form.value.analysis = Object.keys(rest).length ? rest : null
+  ElMessage.info('尺码数据已移除，将使用默认规格')
 }
 
 const submit = async () => {

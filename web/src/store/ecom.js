@@ -131,11 +131,12 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
   }
 
 
-  const generateCopywriting = async (productName, hint, assetNos) => {
+  const generateCopywriting = async (productName, hint, assetNos, imageType) => {
     const res = await httpPost('/api/ai-commerce/copywrite', {
       product_name: productName,
       hint: hint,
-      reference_assets: (assetNos || []).slice(0, 3)
+      reference_assets: (assetNos || []).slice(0, 3),
+      image_type: imageType || ''
     })
     if (res.code !== 0) throw new Error(res.message || '生成失败')
     return {

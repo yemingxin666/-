@@ -52,6 +52,7 @@ type CopywriteReq struct {
 	ProductName string
 	Hint        string
 	AssetNos    []string
+	ImageType   string
 }
 
 const maxCopywriteImageCount = 3
@@ -421,7 +422,7 @@ func (s *ImageService) Copywrite(ctx context.Context, userID uint, req Copywrite
 	}
 
 	client := provider.NewOpenAIVisionCopywriter(visionModel.ApiEndpoint, visionModel.ApiKey, visionModel.Name)
-	content, analysis, err = client.GenerateCopywrite(ctx, req.ProductName, req.Hint, imageURLs)
+	content, analysis, err = client.GenerateCopywrite(ctx, req.ProductName, req.Hint, imageURLs, req.ImageType)
 	if err != nil {
 		return "", nil, fmt.Errorf("视觉代写失败: %w", err)
 	}

@@ -251,6 +251,7 @@ func (h *ImageHandler) Copywrite(c *gin.Context) {
 		Hint            string   `json:"hint"`
 		AssetNos        []string `json:"asset_nos"`
 		ReferenceAssets []string `json:"reference_assets"`
+		ImageType       string   `json:"image_type"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		resp.ERROR(c, "参数错误")
@@ -266,6 +267,7 @@ func (h *ImageHandler) Copywrite(c *gin.Context) {
 		ProductName: body.ProductName,
 		Hint:        body.Hint,
 		AssetNos:    assetNos,
+		ImageType:   body.ImageType,
 	})
 	if err != nil {
 		resp.ERROR(c, err.Error())

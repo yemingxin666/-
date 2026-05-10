@@ -63,6 +63,10 @@ type Vars struct {
 	Scene1En string
 	Scene2Zh string
 	Scene2En string
+
+	// 尺码表数据（来自 vision 识别 + Normalize，已合法 JSON，不做 HTML 转义）
+	SizeChartJSON string
+	HasSizeChart  bool
 }
 
 // RenderResult 渲染结果
@@ -147,6 +151,9 @@ func renderOne(tmplText string, vars Vars) (string, error) {
 		Scene1En: html.EscapeString(vars.Scene1En),
 		Scene2Zh: html.EscapeString(vars.Scene2Zh),
 		Scene2En: html.EscapeString(vars.Scene2En),
+		// 尺码表 JSON：已 normalize 的合法 JSON，跳过 HTML 转义以保留引号结构
+		SizeChartJSON: vars.SizeChartJSON,
+		HasSizeChart:  vars.HasSizeChart,
 	}
 	t, err := template.New("prompt").Parse(tmplText)
 	if err != nil {

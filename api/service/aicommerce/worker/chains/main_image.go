@@ -73,7 +73,7 @@ func RunMainImage(
 
 		visionClient, visionErr := buildVisionClient(db)
 		if visionErr == nil {
-			content, analysis, err := visionClient.GenerateCopywrite(ctx, productName, sellingPoints, imageURLs)
+			content, analysis, err := visionClient.GenerateCopywrite(ctx, productName, sellingPoints, imageURLs, task.ImageType)
 			if err == nil {
 				if sellingPoints == "" {
 					vars.SellingPoints = content
@@ -299,6 +299,15 @@ func fillAnalysisVars(vars prompt.Vars, a *provider.CopywriteAnalysis) prompt.Va
 	vars.Scene0Zh, vars.Scene0En = zhScene(0), enScene(0)
 	vars.Scene1Zh, vars.Scene1En = zhScene(1), enScene(1)
 	vars.Scene2Zh, vars.Scene2En = zhScene(2), enScene(2)
+
+	// 尺码表 JSON 注入（仅 size_capacity 类型 vision 才会返回非空）
+	if jsonStr, ok := provider.NormalizeSizeChartJSON(a.SizeChart); ok {
+		vars.SizeChartJSON = jsonStr
+		vars.HasSizeChart = true
+	} else {
+		vars.SizeChartJSON = ""
+		vars.HasSizeChart = false
+	}
 
 	return vars
 }

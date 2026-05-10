@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
 )
 
 type visionTextPart struct {
@@ -81,6 +82,7 @@ type CopywriteAnalysis struct {
 	PrintDesignLock             string                  `json:"print_design_lock"`
 	ProductNameZh               string                  `json:"product_name_zh"`
 	RecommendedStyle            string                  `json:"recommended_style"`
+	SizeChart                   json.RawMessage         `json:"size_chart,omitempty"`
 }
 
 type OpenAIVisionCopywriter struct {
@@ -153,7 +155,275 @@ var validStyles = map[string]bool{
 	"energetic_hit": true, "dark_quality": true, "asymmetric_layout": true,
 }
 
-func (c *OpenAIVisionCopywriter) GenerateCopywrite(ctx context.Context, productName, hint string, imageURLs []string) (string, *CopywriteAnalysis, error) {
+// ──────────────── Vision Prompt 注册表（按 image_type 路由） ────────────────
+
+const imageTypeSizeCapacity = "size_capacity"
+
+const sizeCapacityPromptAppendix = `
+
+═══ 额外任务：尺码表/尺寸/容量表识别 ═══
+仅当图片中存在明确可见的尺码表、尺寸表、容量表、规格参数表时执行。
+
+你必须在原 JSON 输出基础上额外输出 "size_chart" 字段：
+
+如果有明确可读的表格：
+{
+  "size_chart": {
+    "unit": "cm",
+    "headers": ["尺码", "衣长", "胸围"],
+    "rows": [["S", "60", "88"], ["M", "62", "92"]]
+  }
+}
+
+约束：
+- headers 必须来自图片中可见表头或可直接对应的字段名
+- rows 仅包含图片中可见或 OCR 可可靠读取的数据
+- unit 默认 "cm"；原图明确为 inch/mm/ml/L/kg/g 等时，使用原图单位
+- headers 最多 12 列，rows 最多 20 行
+- 单元格只保留短文本或数字，不输出解释性长句
+- 多张图时，优先提取最完整、最清晰的一张
+
+如果无法确认表格数据、图片模糊或只有商品外观没有尺寸表，必须输出：
+{ "size_chart": null }
+
+严格禁止：
+- 禁止根据品类常识、经验尺码、常见 S/M/L 规格自行补全
+- 禁止猜测缺失数值
+- 禁止生成图片中不存在的行列
+- 禁止把卖点、材质描述、营销文案误识别为 size_chart
+`
+
+// VisionPromptVariant 单个 image_type 的 vision prompt 变体
+type VisionPromptVariant struct {
+	Key               string
+	SystemPrompt      string
+	SupportsSizeChart bool
+}
+
+// visionPromptRegistry image_type → variant 路由表
+// 未来扩展只需注册一条
+var visionPromptRegistry = map[string]VisionPromptVariant{
+	"default": {
+		Key:               "default",
+		SystemPrompt:      copywriteSystemPrompt,
+		SupportsSizeChart: false,
+	},
+	imageTypeSizeCapacity: {
+		Key:               imageTypeSizeCapacity,
+		SystemPrompt:      copywriteSystemPrompt + sizeCapacityPromptAppendix,
+		SupportsSizeChart: true,
+	},
+}
+
+// ResolveVisionPromptVariant 按 image_type（逗号分隔）解析专用 prompt 变体
+// 精确匹配，专用变体优先，未知/空回退 default
+func ResolveVisionPromptVariant(imageType string) VisionPromptVariant {
+	for _, t := range strings.Split(imageType, ",") {
+		t = strings.TrimSpace(t)
+		if t == "" || t == "default" {
+			continue
+		}
+		if v, ok := visionPromptRegistry[t]; ok {
+			return v
+		}
+	}
+	return visionPromptRegistry["default"]
+}
+
+// ──────────────── SizeChart Normalize ────────────────
+
+const (
+	sizeChartMaxHeaders   = 12
+	sizeChartMaxRows      = 20
+	sizeChartMaxHeaderLen = 24
+	sizeChartMaxCellLen   = 32
+	sizeChartMaxUnitLen   = 12
+	// JSON 上限：考虑模板静态部分约 3000 字符 + prompt 总长 4000 字符限制，留出预算
+	sizeChartMaxJSONBytes = 800
+)
+
+type sizeChartPayload struct {
+	Unit    string          `json:"unit"`
+	Headers []string        `json:"headers"`
+	Rows    [][]interface{} `json:"rows"`
+}
+
+// NormalizeSizeChartJSON 校验、清洗、限长 size_chart 原始 JSON
+// 返回 (compact JSON 字符串, true) 或 ("", false)
+func NormalizeSizeChartJSON(raw json.RawMessage) (string, bool) {
+	if len(raw) == 0 {
+		return "", false
+	}
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return "", false
+	}
+	if !json.Valid(trimmed) {
+		return "", false
+	}
+	var p sizeChartPayload
+	if err := json.Unmarshal(trimmed, &p); err != nil {
+		return "", false
+	}
+	if len(p.Headers) == 0 || len(p.Rows) == 0 {
+		return "", false
+	}
+
+	// headers 截断 + 清洗
+	if len(p.Headers) > sizeChartMaxHeaders {
+		p.Headers = p.Headers[:sizeChartMaxHeaders]
+	}
+	cleanHeaders := make([]string, 0, len(p.Headers))
+	for _, h := range p.Headers {
+		h = sanitizeCell(h, sizeChartMaxHeaderLen)
+		if h == "" {
+			continue
+		}
+		cleanHeaders = append(cleanHeaders, h)
+	}
+	if len(cleanHeaders) == 0 {
+		return "", false
+	}
+	p.Headers = cleanHeaders
+
+	// rows 截断 + 清洗（先 stringify 再清洗，兼容数字型单元格）
+	if len(p.Rows) > sizeChartMaxRows {
+		p.Rows = p.Rows[:sizeChartMaxRows]
+	}
+	stringRows := make([][]string, 0, len(p.Rows))
+	for _, row := range p.Rows {
+		// 列数超过 headers 长度 → 截断
+		if len(row) > len(p.Headers) {
+			row = row[:len(p.Headers)]
+		}
+		cleanCells := make([]string, 0, len(row))
+		nonEmpty := false
+		for _, c := range row {
+			s := sanitizeCell(stringifyCell(c), sizeChartMaxCellLen)
+			if s != "" {
+				nonEmpty = true
+			}
+			cleanCells = append(cleanCells, s)
+		}
+		if !nonEmpty {
+			continue
+		}
+		stringRows = append(stringRows, cleanCells)
+	}
+	if len(stringRows) == 0 {
+		return "", false
+	}
+
+	// unit 校验（复用 sanitizeCell 与 header/cell 一致清洗策略）
+	unit := sanitizeCell(p.Unit, sizeChartMaxUnitLen)
+	if unit == "" {
+		unit = "cm"
+	}
+
+	// compact 输出 + 总长度限制；超出时按行/列动态压缩，最大努力保留更多数据
+	out, ok := tryCompact(unit, p.Headers, stringRows)
+	if ok {
+		return out, true
+	}
+	// 优先逐步减少 rows
+	for r := len(stringRows) - 1; r >= 1; r-- {
+		out, ok := tryCompact(unit, p.Headers, stringRows[:r])
+		if ok {
+			return out, true
+		}
+	}
+	// 最后尝试缩减列（保留前若干列）
+	for c := len(p.Headers) - 1; c >= 2; c-- {
+		trimmedHeaders := p.Headers[:c]
+		trimmedRows := make([][]string, 0, len(stringRows))
+		for _, row := range stringRows {
+			if len(row) > c {
+				row = row[:c]
+			}
+			trimmedRows = append(trimmedRows, row)
+		}
+		out, ok := tryCompact(unit, trimmedHeaders, trimmedRows)
+		if ok {
+			return out, true
+		}
+	}
+	return "", false
+}
+
+// tryCompact 尝试 compact 后判断是否在长度预算内
+func tryCompact(unit string, headers []string, rows [][]string) (string, bool) {
+	b, err := json.Marshal(struct {
+		Unit    string     `json:"unit"`
+		Headers []string   `json:"headers"`
+		Rows    [][]string `json:"rows"`
+	}{Unit: unit, Headers: headers, Rows: rows})
+	if err != nil {
+		return "", false
+	}
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, b); err != nil {
+		return "", false
+	}
+	if buf.Len() > sizeChartMaxJSONBytes {
+		return "", false
+	}
+	return buf.String(), true
+}
+
+// stringifyCell 将任意 JSON 单元格值转为字符串（兼容数字、布尔、字符串）
+func stringifyCell(v interface{}) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return t
+	case float64:
+		// 整数样式输出，避免 60 → "60.000000"
+		if t == float64(int64(t)) {
+			return fmt.Sprintf("%d", int64(t))
+		}
+		return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.4f", t), "0"), ".")
+	case bool:
+		if t {
+			return "true"
+		}
+		return "false"
+	default:
+		return fmt.Sprint(t)
+	}
+}
+
+// sanitizeCell 移除控制字符、trim、限长
+func sanitizeCell(s string, max int) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if r == '\n' || r == '\t' || r == '\r' {
+			b.WriteByte(' ')
+			continue
+		}
+		if unicode.IsControl(r) {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	out := strings.TrimSpace(b.String())
+	if out == "" {
+		return ""
+	}
+	// 按 rune 限长
+	runes := []rune(out)
+	if len(runes) > max {
+		out = string(runes[:max])
+	}
+	return out
+}
+
+func (c *OpenAIVisionCopywriter) GenerateCopywrite(ctx context.Context, productName, hint string, imageURLs []string, imageType string) (string, *CopywriteAnalysis, error) {
 	if c.baseURL == "" {
 		return "", nil, fmt.Errorf("vision copywrite baseURL is empty")
 	}
@@ -192,10 +462,11 @@ func (c *OpenAIVisionCopywriter) GenerateCopywrite(ctx context.Context, productN
 		})
 	}
 
+	variant := ResolveVisionPromptVariant(imageType)
 	req := visionChatReq{
 		Model: c.model,
 		Messages: []visionChatMessage{
-			{Role: "system", Content: copywriteSystemPrompt},
+			{Role: "system", Content: variant.SystemPrompt},
 			{Role: "user", Content: parts},
 		},
 		ResponseFormat: &struct {
