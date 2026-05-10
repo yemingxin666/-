@@ -168,7 +168,7 @@
     <!-- 历史结果（会话级，未刷新前保留） -->
     <EcomHistoryGroup />
 
-    <div v-else-if="!taskStore.currentTask && !taskStore.items.length && !taskStore.outputs.length && !taskStore.history.length" class="result-empty">
+    <div v-if="!taskStore.currentTask && !taskStore.items.length && !taskStore.outputs.length && !taskStore.history.length" class="result-empty">
       <!-- 对照截图：破损图片 SVG + 文字 -->
       <svg class="empty-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="8" y="14" width="64" height="52" rx="4" stroke="#d9d9d9" stroke-width="2.5"/>
