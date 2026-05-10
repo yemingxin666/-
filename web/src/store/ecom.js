@@ -158,6 +158,13 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
   const history = ref([])
   let pollTimer = null
 
+  // 模块中文名映射（与后端 image_service.go moduleLabel 保持一致）
+  const MODULE_LABELS = {
+    main_image: '主图设计', detail_page: '详情页', white_bg: '白底图',
+    clone: '克隆设计', ratio_convert: '比例转换', translate: '图文翻译', edit: '图片编辑',
+  }
+  const moduleLabel = (m) => MODULE_LABELS[m] || m || '任务'
+
   // 合并轮询返回的 items：以 image_type 为键 in-place 更新已有项，
   // 保护已 succeeded 项不被回退（防止后端临时丢字段导致前端闪烁）
   const mergeItems = (oldItems, newItems) => {
@@ -228,6 +235,19 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
         phase: 'pending',
         progress: 0,
         url: null,
+      }))
+    } else if (Array.isArray(data.reference_assets) && data.reference_assets.length) {
+      // white_bg / clone / ratio_convert 等无 image_type 的模块：
+      // 按参考图张数预填占位，避免提交后 3 秒轮询窗口内只显示 1 张兜底 loading，
+      // 然后第一次拿到后端 items 时突然从 1 变成 N。
+      items.value = data.reference_assets.map((_, i) => ({
+        image_type: `${data.module || 'task'}_${i}`,
+        label: `${moduleLabel(data.module)} ${i + 1}`,
+        status: 'pending',
+        phase: 'pending',
+        progress: 0,
+        url: null,
+        asset_no: '',
       }))
     } else {
       items.value = []

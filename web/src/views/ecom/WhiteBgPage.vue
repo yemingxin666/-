@@ -38,9 +38,34 @@
   </aside>
 
   <section class="result-panel">
-    <div v-if="taskStore.outputs.length || taskStore.isRunning" class="result-grid">
-      <template v-if="taskStore.outputs.length">
-        <EcomResultCard v-for="(url, i) in taskStore.outputs" :key="i" :url="url" @regenerate="submit" @delete="taskStore.reset()" />
+    <div v-if="hasRenderable" class="result-grid">
+      <!--
+        优先渲染 items（每张参考图有独立状态/进度）；回退 outputs 仅用于旧数据。
+        这样 2 张图的任务提交后就能立刻看到 2 张 "处理中" 卡片，逐张变为成功，
+        而不是等全部处理完才突然冒出 N 张图。
+      -->
+      <template v-if="taskStore.items.length">
+        <EcomResultCard
+          v-for="item in taskStore.items"
+          :key="item.image_type || item.asset_no"
+          :url="item.url"
+          :status="item.status"
+          :label="item.label"
+          :progress="item.progress"
+          :phase="item.phase"
+          :ratio="taskStore.submittedRatio"
+          @regenerate="submit"
+          @delete="taskStore.reset()"
+        />
+      </template>
+      <template v-else-if="taskStore.outputs.length">
+        <EcomResultCard
+          v-for="(url, i) in taskStore.outputs"
+          :key="i"
+          :url="url"
+          @regenerate="submit"
+          @delete="taskStore.reset()"
+        />
       </template>
       <EcomResultCard
         v-else
@@ -53,7 +78,7 @@
       />
     </div>
     <EcomHistoryGroup />
-    <div v-if="!taskStore.currentTask && !taskStore.outputs.length && !taskStore.history.length" class="result-empty">
+    <div v-if="!taskStore.currentTask && !taskStore.outputs.length && !taskStore.items.length && !taskStore.history.length" class="result-empty">
       <svg class="empty-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="8" y="14" width="64" height="52" rx="4" stroke="currentColor" stroke-width="2.5"/>
         <path d="M8 46l18-14 14 12 10-8 22 16" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
@@ -85,6 +110,11 @@ const productName = ref('')
 // 白底图按张计费：单价 5 算力/张，与后端 rembg 定价保持一致
 const WHITE_BG_UNIT_PRICE = 5
 const estimatedCost = computed(() => assetNos.value.length * WHITE_BG_UNIT_PRICE)
+
+// 只要 items/outputs 任一非空，或任务仍在进行，就需要渲染结果区
+const hasRenderable = computed(() =>
+  taskStore.items.length > 0 || taskStore.outputs.length > 0 || taskStore.isRunning
+)
 
 const submit = async () => {
   if (!assetNos.value.length) { ElMessage.warning('请先上传产品图片'); return }

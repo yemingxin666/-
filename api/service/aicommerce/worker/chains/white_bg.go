@@ -52,6 +52,14 @@ func RunWhiteBg(
 		refMap[a.AssetNo] = a
 	}
 
+	// 为每张参考图预创建占位 asset（phase=generating，oss_key 空）。
+	// 这样 buildSyntheticItems 在轮询时就能看到 N 张"处理中"卡片，
+	// 不再出现"只显示 1 个任务 → 完成后突然冒出 2 张图"的跳变。
+	placeholderIDs := make([]uint, total)
+	for i, assetNo := range assetNos {
+		placeholderIDs[i] = createWhiteBgPlaceholder(db, task, assetNo, i)
+	}
+
 	var (
 		firstErr  error
 		succeeded int
@@ -60,13 +68,16 @@ func RunWhiteBg(
 	for i, assetNo := range assetNos {
 		refAsset, ok := refMap[assetNo]
 		if !ok {
+			saveTypeError(db, task, fmt.Sprintf("%s_%d", task.Module, i),
+				fmt.Sprintf("reference asset %s not found", assetNo), placeholderIDs[i])
 			if firstErr == nil {
 				firstErr = fmt.Errorf("reference asset %s not found", assetNo)
 			}
 			continue
 		}
 
-		if err := processOneWhiteBg(ctx, db, vision, uploader, cfg, task, refAsset); err != nil {
+		if err := processOneWhiteBg(ctx, db, vision, uploader, cfg, task, refAsset, placeholderIDs[i]); err != nil {
+			saveTypeError(db, task, fmt.Sprintf("%s_%d", task.Module, i), err.Error(), placeholderIDs[i])
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -105,8 +116,9 @@ func RunWhiteBg(
 	return nil
 }
 
-// processOneWhiteBg 处理单张参考图：抠图 → 下载 → 合底 → 上传 → 落库。
-// 抽出单图流程便于循环复用，也方便后续改造（例如并发、部分失败追踪）。
+// processOneWhiteBg 处理单张参考图：抠图 → 下载 → 合底 → 上传 → 升级占位 asset。
+// placeholderID 是 RunWhiteBg 预先创建的占位 asset，这里负责把它 finalize
+// 为带有 oss_key 的真实资产，保证前端能在该张处理完后立即看到图片。
 func processOneWhiteBg(
 	ctx context.Context,
 	db *gorm.DB,
@@ -115,6 +127,7 @@ func processOneWhiteBg(
 	cfg aicommerce.Config,
 	task *model.AiImageTask,
 	refAsset model.AiImageAsset,
+	placeholderID uint,
 ) error {
 	// 1) 准备可供阿里云拉取的参考图 URL。
 	//    OssKey 此处实际存的是完整 URL（见 UploadAsset handler），
@@ -123,6 +136,9 @@ func processOneWhiteBg(
 	if err != nil {
 		return fmt.Errorf("resolve reference url for %s: %w", refAsset.AssetNo, err)
 	}
+
+	// 阶段标记：generating（抠图 + 下载）→ uploading（合底 + 上传）→ succeeded
+	updatePhaseAsset(db, placeholderID, PhaseGenerating)
 
 	// 2) 抠图：拿到透明背景 PNG 的外链
 	transparentURL, err := vision.RemoveBackground(ctx, srcURL)
@@ -142,31 +158,43 @@ func processOneWhiteBg(
 		return fmt.Errorf("composite white bg for %s: %w", refAsset.AssetNo, err)
 	}
 
+	updatePhaseAsset(db, placeholderID, PhaseUploading)
+
 	// 5) 上传字节流
 	fileURL, err := uploader.PutBytes(whiteBgBytes, ".png")
 	if err != nil {
 		return fmt.Errorf("upload white bg for %s: %w", refAsset.AssetNo, err)
 	}
 
-	// 6) 落库。OssKey 字段存完整 URL，与其他 chain 保持一致。
-	taskIDCopy := task.Id
-	asset := model.AiImageAsset{
-		AssetNo:   fmt.Sprintf("wbg_%d_%d", task.Id, time.Now().UnixNano()),
-		TaskId:    &taskIDCopy,
-		UserId:    task.UserId,
-		Kind:      model.AssetKindGenerated,
-		OssBucket: cfg.OSSBucket,
-		OssKey:    fileURL,
-		MimeType:  "image/png",
-		Width:     width,
-		Height:    height,
-		MetadataJSON: model.JSONMap{
+	// 6) finalize 占位 asset：写入 OssKey + 尺寸 + metadata
+	return finalizePhaseAsset(db, placeholderID, fileURL, cfg.OSSBucket, "image/png", width, height,
+		model.JSONMap{
 			"source_asset_no": refAsset.AssetNo,
 			"ratio":           task.Ratio,
-		},
+		})
+}
+
+// createWhiteBgPlaceholder 为 white_bg 单张参考图创建占位 asset。
+// 与主图 chain 的 createPhaseAsset 行为一致，区别是用 "<module>_<idx>" 作为
+// metadata.image_type，让前端（即使未来改造为 typed items）也能稳定定位。
+func createWhiteBgPlaceholder(db *gorm.DB, task *model.AiImageTask, sourceAssetNo string, idx int) uint {
+	taskID := task.Id
+	asset := model.AiImageAsset{
+		AssetNo:   fmt.Sprintf("wbg_%d_%d_%d", task.Id, idx, time.Now().UnixNano()),
+		TaskId:    &taskID,
+		UserId:    task.UserId,
+		Kind:      model.AssetKindGenerated,
+		MimeType:  "image/png",
 		CreatedAt: time.Now(),
+		MetadataJSON: model.JSONMap{
+			// 占位阶段：前端据此显示"处理中"，轮询到 oss_key 填充时切换为成功
+			"image_type":      fmt.Sprintf("%s_%d", task.Module, idx),
+			"phase":           PhaseRendering,
+			"source_asset_no": sourceAssetNo,
+		},
 	}
-	return db.Create(&asset).Error
+	db.Create(&asset)
+	return asset.Id
 }
 
 // resolveReferenceURL 为 white_bg / 其它 chain 产生"阿里云可访问"的参考图 URL。

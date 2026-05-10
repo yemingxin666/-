@@ -415,26 +415,41 @@ func buildTaskItems(task *model.AiImageTask, assets []model.AiImageAsset) ([]Ima
 	return items, outputs, progress
 }
 
-// buildSyntheticItems 为无 image_type 的模块（如 clone）按 assets 合成 items。
-// 让前端能基于 item.asset_no 触发编辑功能，同时保持与 typed item 接口一致。
+// buildSyntheticItems 为无 image_type 的模块（white_bg / clone / ratio_convert 等）
+// 按 assets 合成 items。既展示已成功的资产（有 oss_key），也展示处理中 / 失败的
+// 占位资产（oss_key 为空），让前端在任务处理期能立刻看到 N 张卡片而不是
+// "一个兜底 loading"，等任务完成时再突然冒出一批结果。
+//
+// 稳定性：assets 按 (created_at ASC, id ASC) 查出，索引 idx 在多次轮询间保持一致。
+// 占位 asset finalize 后 asset_no 不变，前端 mergeItems 能保留卡片引用。
 func buildSyntheticItems(task *model.AiImageTask, assets []model.AiImageAsset) []ImageTaskItem {
 	items := make([]ImageTaskItem, 0, len(assets))
-	idx := 0
-	for _, a := range assets {
-		if a.OssKey == "" {
-			continue
-		}
-		url := a.OssKey
-		items = append(items, ImageTaskItem{
+	for idx, a := range assets {
+		phase, _ := a.MetadataJSON["phase"].(string)
+		item := ImageTaskItem{
+			// ImageType 只用来做前端 key，对无类型模块用 "<module>_<idx>" 即可
 			ImageType: fmt.Sprintf("%s_%d", task.Module, idx),
 			Label:     fmt.Sprintf("%s %d", moduleLabel(task.Module), idx+1),
-			Status:    "succeeded",
-			Phase:     "succeeded",
-			Progress:  100,
-			URL:       &url,
+			Phase:     phase,
+			Progress:  phaseToProgress(phase),
 			AssetNo:   a.AssetNo,
-		})
-		idx++
+		}
+		switch {
+		case a.OssKey != "":
+			url := a.OssKey
+			item.Status = "succeeded"
+			item.Phase = "succeeded"
+			item.Progress = 100
+			item.URL = &url
+		case phase == "failed":
+			item.Status = "failed"
+		default:
+			item.Status = "running"
+			if item.Phase == "" {
+				item.Phase = "pending"
+			}
+		}
+		items = append(items, item)
 	}
 	return items
 }
