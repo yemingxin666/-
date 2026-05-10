@@ -6,21 +6,6 @@
         <el-image :src="stickyUrl" fit="cover" class="result-img" :preview-src-list="[stickyUrl]" preview-teleported />
         <div v-if="label" class="label-badge">{{ label }}</div>
         <div class="preview-hint">点击图片可放大预览</div>
-        <div class="card-overlay">
-          <el-button circle @click="download" title="下载">
-            <el-icon><Download /></el-icon>
-          </el-button>
-          <el-button circle @click="emit('regenerate', props.imageType)" title="重新生成">
-            <el-icon><Refresh /></el-icon>
-          </el-button>
-          <el-popconfirm title="删除此任务的全部图片？" @confirm="emit('delete')">
-            <template #reference>
-              <el-button circle type="danger" title="删除">
-                <el-icon><Delete /></el-icon>
-              </el-button>
-            </template>
-          </el-popconfirm>
-        </div>
       </template>
 
       <!-- 失败态 -->
@@ -55,6 +40,23 @@
         </div>
       </div>
 
+    </div>
+
+    <!-- 独立操作工具栏：图片下方常驻条带，永不与图片争空间，永不被裁切 -->
+    <div v-if="stickyUrl && status !== 'failed'" class="card-toolbar">
+      <button class="tool-btn" @click="download" title="下载">
+        <el-icon><Download /></el-icon>
+      </button>
+      <button class="tool-btn" @click="emit('regenerate', props.imageType)" title="重新生成">
+        <el-icon><Refresh /></el-icon>
+      </button>
+      <el-popconfirm title="删除此任务的全部图片？" @confirm="emit('delete')">
+        <template #reference>
+          <button class="tool-btn tool-btn-danger" title="删除">
+            <el-icon><Delete /></el-icon>
+          </button>
+        </template>
+      </el-popconfirm>
     </div>
   </div>
 </template>
@@ -220,27 +222,43 @@ const download = async () => {
   pointer-events: none;
 }
 
-.card-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(4px);
+/* 独立操作工具栏：位于图片下方，常驻可见，hover 时强化背景。永不与图片争空间。 */
+.card-toolbar {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px;
+  background: var(--theme-bg);
+  border-top: 1px solid var(--theme-border-primary);
+}
+
+.tool-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  gap: 12px;
-  opacity: 0;
-  transition: all 0.3s;
-  /* 让覆盖层不拦截图片本身的点击：仅按钮可交互，图片空白区域可触发 el-image 预览 */
-  pointer-events: none;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--gray-btn-bg);
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
 }
-.result-card:hover .card-overlay,
-.result-card:focus-within .card-overlay {
-  opacity: 1;
+.tool-btn .el-icon {
+  font-size: 14px;
 }
-.card-overlay :deep(.el-button),
-.card-overlay :deep(.el-popconfirm) {
-  pointer-events: auto;
+.tool-btn:hover {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  transform: translateY(-1px);
+}
+.tool-btn-danger:hover {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
 }
 
 /* 图片层指针变手型，提示用户可点击放大 */
@@ -266,21 +284,6 @@ const download = async () => {
 .result-card:hover .preview-hint {
   opacity: 1;
   transform: translateY(0);
-}
-
-:deep(.el-button.is-circle) {
-  width: 40px;
-  height: 40px;
-  background: rgba(255, 255, 255, 0.9);
-  border: none;
-  color: #333;
-  transition: all 0.2s;
-
-  &:hover {
-    transform: scale(1.1);
-    background: #fff;
-    color: var(--el-color-primary);
-  }
 }
 
 /* 加载态 */
