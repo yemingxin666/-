@@ -1,7 +1,6 @@
 <template>
   <div class="result-card" :class="{ 'is-failed': status === 'failed' }" :style="{ '--card-ratio': cssRatio }">
     <div class="card-image-wrap">
-
       <!-- 成功：显示图片 + 标签徽章 + 操作覆盖层 -->
       <template v-if="url && status !== 'failed'">
         <el-image :src="url" fit="cover" class="result-img" :preview-src-list="[url]" preview-teleported />
@@ -64,21 +63,55 @@ const props = defineProps({
 const cssRatio = computed(() => props.ratio.replace(':', '/'))
 const emit = defineEmits(['regenerate', 'delete'])
 
+// MIME → 扩展名映射，按 blob.type 推断最可靠
+const MIME_EXT = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/bmp': 'bmp',
+}
+
+// 从 URL 路径提取扩展名（剥离 query/hash），失败返回空串
+const guessExtFromUrl = (url) => {
+  try {
+    const path = new URL(url).pathname
+    const m = path.match(/\.([a-zA-Z0-9]{2,5})$/)
+    return m ? m[1].toLowerCase() : ''
+  } catch {
+    return ''
+  }
+}
+
+const buildFilename = (ext) => `ecom_${Date.now()}.${ext || 'png'}`
+
 const download = async () => {
   try {
     const res = await fetch(props.url)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const blob = await res.blob()
+    const ext = MIME_EXT[blob.type] || guessExtFromUrl(props.url) || 'png'
     const objectUrl = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = objectUrl
-    a.download = 'ecom_' + Date.now() + '.png'
+    a.download = buildFilename(ext)
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(objectUrl)
-  } catch {
-    // 跨域 fetch 失败时降级为新标签打开
-    window.open(props.url, '_blank')
+  } catch (err) {
+    // 跨域 fetch 失败时降级：尽量用 <a download> 触发下载，跨域时浏览器可能忽略 download 属性
+    console.warn('[ecom download] fetch fallback:', err)
+    const ext = guessExtFromUrl(props.url) || 'png'
+    const a = document.createElement('a')
+    a.href = props.url
+    a.download = buildFilename(ext)
+    a.target = '_blank'
+    a.rel = 'noopener'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
   }
 }
 </script>
