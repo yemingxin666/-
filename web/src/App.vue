@@ -7,8 +7,6 @@
 <script setup>
 import { checkSession, getSystemInfo } from '@/store/cache'
 import { useSharedStore } from '@/store/sharedata'
-import { showMessageInfo } from '@/utils/dialog'
-import { isChrome, isMobile } from '@/utils/libs'
 import { ElConfigProvider } from 'element-plus'
 import { onMounted } from 'vue'
 
@@ -41,10 +39,6 @@ onMounted(() => {
     link.href = res.data.logo
     document.head.appendChild(link)
   })
-  if (!isChrome() && !isMobile()) {
-    showMessageInfo('建议使用 Chrome 浏览器以获得最佳体验。')
-  }
-
   checkSession()
     .then(() => {
       store.setIsLogin(true)
