@@ -11,10 +11,16 @@ import (
 	"geekai/service/oss"
 	"geekai/store/model"
 	"strings"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
 )
+
+// imageTypeTimeout 单个图片类型（= 1 张输出图）的生图调用超时预算。
+// 主图/详情页链路每个 image_type 对应 1 次 ImageToImage/TextToImage 调用，
+// 与克隆设计风格图保持一致：每张图 90s。
+const imageTypeTimeout = 90 * time.Second
 
 // RunMainImage 主图/详情页生成链
 func RunMainImage(
@@ -139,9 +145,12 @@ func RunMainImage(
 		// 阶段 2：generating — 调用 AI API
 		updatePhaseAsset(db, phaseAssetID, PhaseGenerating)
 
+		// 按图片类型分配超时：每个 image_type → 1 张输出图 → 90s
+		callCtx, cancel := context.WithTimeout(ctx, imageTypeTimeout)
+
 		var genResult *provider.GenerateResult
 		if len(refURLs) > 0 {
-			genResult, err = imgClient.ImageToImage(ctx, provider.ImageToImageReq{
+			genResult, err = imgClient.ImageToImage(callCtx, provider.ImageToImageReq{
 				Model:     task.Model,
 				Prompt:    rendered.PositivePrompt,
 				ImageURL:  refURLs[0],
@@ -149,7 +158,7 @@ func RunMainImage(
 				Strength:  0.85,
 			})
 		} else {
-			genResult, err = imgClient.TextToImage(ctx, provider.TextToImageReq{
+			genResult, err = imgClient.TextToImage(callCtx, provider.TextToImageReq{
 				Model:          task.Model,
 				Prompt:         rendered.PositivePrompt,
 				NegativePrompt: rendered.NegativePrompt,
@@ -157,6 +166,7 @@ func RunMainImage(
 				BatchSize:      1,
 			})
 		}
+		cancel()
 		if err != nil {
 			saveTypeError(db, task, imageType, fmt.Sprintf("生图失败: %v", err), phaseAssetID)
 			if firstErr == nil {
