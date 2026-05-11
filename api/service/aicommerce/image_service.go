@@ -488,9 +488,11 @@ func moduleLabel(m string) string {
 }
 
 // GalleryTask 历史图库列表项（含输出图片 URL + asset_no）
+// 注意：通过嵌入字段覆盖屏蔽 prompt_json（提示词），列表接口不向前端返回提示词
 type GalleryTask struct {
 	model.AiImageTask
-	Outputs []OutputItem `json:"outputs"`
+	PromptJSON *struct{}    `json:"prompt_json,omitempty"` // 屏蔽父结构体同名字段；始终为 nil + omitempty 即从输出中省略
+	Outputs    []OutputItem `json:"outputs"`
 }
 
 // OutputItem 历史图库单张输出图（携带 asset_no 以支持编辑功能）

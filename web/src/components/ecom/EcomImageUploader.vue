@@ -17,13 +17,14 @@
     </el-upload>
     <div class="uploader-tip">支持 JPG/PNG/WEBP，单张不超过 {{ maxSizeMB }}MB</div>
 
-    <!-- 全功能图片预览（支持缩放、翻页） -->
+    <!-- 全功能图片预览（支持缩放、翻页；点击空白遮罩关闭） -->
     <el-image-viewer
       v-if="previewVisible"
       :url-list="previewUrlList"
       :initial-index="previewIndex"
       teleported
-      @close="previewVisible = false"
+      hide-on-click-modal
+      @close="onViewerClose"
     />
   </div>
 </template>
@@ -56,6 +57,16 @@ const handlePreview = (file) => {
   const idx = fileList.value.findIndex((f) => f.uid === file.uid)
   previewIndex.value = idx >= 0 ? idx : 0
   previewVisible.value = true
+}
+
+// 关闭预览时，el-upload picture-card 会把焦点留在触发预览的缩略图上，
+// 从而露出 "Press delete to remove" 的内置提示。主动把焦点收回 body 消除该副作用。
+const onViewerClose = () => {
+  previewVisible.value = false
+  const active = document.activeElement
+  if (active && typeof active.blur === 'function' && active !== document.body) {
+    active.blur()
+  }
 }
 
 const beforeUpload = (file) => {

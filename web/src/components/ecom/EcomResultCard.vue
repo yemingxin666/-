@@ -3,7 +3,14 @@
     <div class="card-image-wrap">
       <!-- 成功：显示图片 + 标签徽章 + 操作覆盖层（粘性显示，使用 stickyUrl 避免闪烁） -->
       <template v-if="stickyUrl && status !== 'failed'">
-        <el-image :src="stickyUrl" fit="cover" class="result-img" :preview-src-list="[stickyUrl]" preview-teleported />
+        <el-image
+          :src="stickyUrl"
+          fit="cover"
+          class="result-img"
+          :preview-src-list="[stickyUrl]"
+          preview-teleported
+          hide-on-click-modal
+        />
         <div v-if="label" class="label-badge">{{ label }}</div>
         <div class="preview-hint">点击图片可放大预览</div>
       </template>
