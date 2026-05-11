@@ -51,7 +51,7 @@ func (h *ImageHandler) RegisterRoutes() {
 		group.DELETE("/tasks/:task_no", h.DeleteTask)
 		group.DELETE("/assets/:asset_no", h.DeleteAsset)
 		group.GET("/gallery", h.Gallery)
-		group.POST("/copywrite", h.Copywrite)
+		// group.POST("/copywrite", h.Copywrite) // AI 识别图片并代写卖点：暂时下线（保留 handler 以便后续恢复）
 		group.GET("/models", h.ListModels)
 		group.GET("/platform-configs", h.ListPlatformConfigs)
 	}

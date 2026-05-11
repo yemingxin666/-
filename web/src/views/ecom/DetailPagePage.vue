@@ -28,6 +28,7 @@
             :data="form.analysis.size_chart"
             @delete="handleSizeChartDelete"
           />
+          <!-- AI 识别图片并代写卖点：暂时下线（保留代码以便后续恢复）
           <el-tooltip
             :content="form.reference_assets.length ? '' : '请先上传参考图'"
             :disabled="form.reference_assets.length > 0"
@@ -61,6 +62,7 @@
               </transition>
             </div>
           </el-tooltip>
+          -->
         </el-form-item>
 
         <el-form-item>
