@@ -96,16 +96,16 @@
 
         <el-form-item>
           <template #label>
-            <span class="field-label">参考图片 <em>(最多3张产品白底图)</em></span>
+            <span class="field-label">产品图 <em>(最多3张产品白底图)</em></span>
           </template>
           <EcomImageUploader v-model:assetNos="form.reference_assets" :multiple="true" :limit="3" />
         </el-form-item>
 
         <el-form-item>
           <template #label>
-            <span class="field-label">克隆参考图 <em>(最多12张)</em></span>
+            <span class="field-label">风格参考图 <em>(最多5张，每张生成1张克隆结果)</em></span>
           </template>
-          <EcomImageUploader v-model:assetNos="form.clone_assets" :multiple="true" :limit="12" />
+          <EcomImageUploader v-model:assetNos="form.clone_assets" :multiple="true" :limit="5" />
         </el-form-item>
 
 
@@ -113,9 +113,9 @@
     </div>
 
     <div class="panel-footer">
-      <EcomCreditBadge :estimated-cost="12" class="footer-credit" />
+      <EcomCreditBadge :estimated-cost="estimatedCost" class="footer-credit" />
       <el-tooltip
-        :content="!form.reference_assets.length && !form.clone_assets.length ? '请先上传参考图片和克隆参考图' : !form.reference_assets.length ? '请先上传参考图片' : !form.clone_assets.length ? '请先上传克隆参考图' : ''"
+        :content="!form.reference_assets.length && !form.clone_assets.length ? '请先上传产品图和风格参考图' : !form.reference_assets.length ? '请先上传产品图' : !form.clone_assets.length ? '请先上传风格参考图' : ''"
         :disabled="form.reference_assets.length > 0 && form.clone_assets.length > 0"
         placement="top"
       >
@@ -179,14 +179,14 @@
         <path d="M56 48v5M56 55v1" stroke="#faad14" stroke-width="2" stroke-linecap="round"/>
       </svg>
       <p class="empty-title">暂无生成的图片</p>
-      <p class="empty-tip">上传克隆参考图后点击「开始克隆」</p>
+      <p class="empty-tip">上传产品图与风格参考图后点击「开始克隆」</p>
     </div>
   </section>
 </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { useEcomConfigStore, useEcomTaskStore } from '@/store/ecom'
@@ -221,6 +221,10 @@ const form = ref({
 
 const { recommendedRatio } = useEcomLinkage(form)
 
+// 克隆设计算力：每张风格参考图 12 算力，无风格图时显示最小单价（用户上传前的引导值）
+const CLONE_CREDIT_PER_IMAGE = 12
+const estimatedCost = computed(() => (form.value.clone_assets.length || 1) * CLONE_CREDIT_PER_IMAGE)
+
 const copywriting = ref(false)
 
 watch(() => form.value.selling_points, () => {
@@ -253,8 +257,10 @@ const copywrite = async () => {
 }
 
 const submit = async () => {
-  if (!form.value.clone_assets.length) { ElMessage.warning('请上传克隆参考图'); return }
-  if (configStore.userPower < 12) { ElMessage.error('算力不足，请充值'); return }
+  if (!form.value.reference_assets.length) { ElMessage.warning('请先上传产品图'); return }
+  if (!form.value.clone_assets.length) { ElMessage.warning('请先上传风格参考图'); return }
+  const totalCost = form.value.clone_assets.length * CLONE_CREDIT_PER_IMAGE
+  if (configStore.userPower < totalCost) { ElMessage.error(`算力不足，本次需 ${totalCost} 算力，请充值`); return }
   try {
     await taskStore.submitTask('/api/ai-commerce/clone-designs', { ...form.value, module: 'clone', model: configStore.selectedModel })
   } catch (e) {

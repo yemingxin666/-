@@ -58,6 +58,13 @@ type CopywriteReq struct {
 
 const maxCopywriteImageCount = 3
 
+// CloneCreditPerImage 克隆设计：每张风格参考图扣费
+const CloneCreditPerImage = 12
+
+// maxCloneAssetCount 克隆模块单次任务的风格参考图上限（与前端 limit 一致）
+// 防止 API 客户端绕过前端限制提交大批量请求导致预扣过多 + worker 串行执行过久
+const maxCloneAssetCount = 5
+
 // GenerateReq 生图请求（所有模块共用）
 type GenerateReq struct {
 	Module          string   `json:"module"`
@@ -68,7 +75,8 @@ type GenerateReq struct {
 	Language        string   `json:"language"`
 	Ratio           string   `json:"ratio"`
 	StyleDesc       string   `json:"style_desc"`
-	ReferenceAssets []string `json:"reference_assets"` // asset_no 列表
+	ReferenceAssets []string `json:"reference_assets"` // asset_no 列表（产品图）
+	CloneAssets     []string `json:"clone_assets"`     // 克隆模块：风格参考图 asset_no 列表
 	Model           string   `json:"model"`            // 指定模型，为空用默认
 }
 
@@ -108,10 +116,11 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 	if err != nil {
 		return nil, err
 	}
-	// 白底图不走文生图模型，按 rembg 固定单价 × 参考图张数计费（每张扣 rembg 单价）
-	// 其他模块按"一次任务一张图"收单张费用
+	// 白底图按 rembg 单价 × 参考图张数；克隆按 12 × 风格参考图张数；其他按单张计费
+	// 依赖 deductCredit 的原子扣减（WHERE power >= cost）天然防 TOCTOU，无需预读余额
 	creditCost := unitPrice
-	if req.Module == ModuleWhiteBg {
+	switch req.Module {
+	case ModuleWhiteBg:
 		rembgPrice, perr := s.promptRepo.GetPriceByModel("rembg")
 		if perr != nil || rembgPrice <= 0 {
 			rembgPrice = 5 // 兜底：与 migration 初始值一致
@@ -121,6 +130,18 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 			return nil, fmt.Errorf("请上传至少 1 张参考图")
 		}
 		creditCost = rembgPrice * n
+	case ModuleClone:
+		n := len(req.CloneAssets)
+		if n == 0 {
+			return nil, fmt.Errorf("请上传至少 1 张风格参考图")
+		}
+		if n > maxCloneAssetCount {
+			return nil, fmt.Errorf("风格参考图最多 %d 张，当前 %d 张", maxCloneAssetCount, n)
+		}
+		if len(req.ReferenceAssets) == 0 {
+			return nil, fmt.Errorf("请上传至少 1 张产品参考图")
+		}
+		creditCost = CloneCreditPerImage * n
 	}
 
 	// 2. 扣减算力（调用 GeeKAI 现有机制）

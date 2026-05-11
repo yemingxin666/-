@@ -18,6 +18,11 @@ import (
 const (
 	modelNanoBanana = "nano-banana"
 	modelGPTImage2  = "gpt-image-2"
+	// openAIImagePerImageTimeout 每张参考图分摊的超时预算。
+	// 上游 chat/completions 图生图模型耗时大致与 content blocks 中的图数线性相关。
+	openAIImagePerImageTimeout = 90 * time.Second
+	// openAIImageMinTimeout 至少给出的请求超时（覆盖网络抖动）。
+	openAIImageMinTimeout = 90 * time.Second
 )
 
 type OpenAIImageClient struct {
@@ -32,15 +37,15 @@ func NewOpenAIImageClient(baseURL, apiKey, modelName string) *OpenAIImageClient 
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	opts := []option.RequestOption{
 		option.WithAPIKey(apiKey),
-		option.WithRequestTimeout(120 * time.Second),
 	}
 	if baseURL != "" {
 		opts = append(opts, option.WithBaseURL(baseURL))
 	}
 
+	// http.Client.Timeout 留空：超时由每次请求的 ctx WithTimeout 控制（按图数动态计算）
 	return &OpenAIImageClient{
 		client:     openai.NewClient(opts...),
-		httpClient: &http.Client{Timeout: 120 * time.Second},
+		httpClient: &http.Client{},
 		baseURL:    baseURL,
 		apiKey:     apiKey,
 		model:      modelName,
@@ -66,6 +71,26 @@ func (c *OpenAIImageClient) ImageToImage(ctx context.Context, req ImageToImageRe
 		{"type": "text", "text": req.Prompt},
 		{"type": "image_url", "image_url": map[string]string{"url": req.ImageURL}},
 	}
+	imageCount := 1
+	// 追加额外参考图（克隆设计：产品图随风格图一同送入，由 prompt 中的角色标注约束模型）
+	for _, extra := range req.ExtraImageURLs {
+		if strings.TrimSpace(extra) == "" {
+			continue
+		}
+		content = append(content, map[string]interface{}{
+			"type":      "image_url",
+			"image_url": map[string]string{"url": extra},
+		})
+		imageCount++
+	}
+
+	// 按图数动态分配超时：每张图 90s，至少 90s
+	timeout := time.Duration(imageCount) * openAIImagePerImageTimeout
+	if timeout < openAIImageMinTimeout {
+		timeout = openAIImageMinTimeout
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
 	body := map[string]interface{}{
 		"model":    c.model,
@@ -84,7 +109,7 @@ func (c *OpenAIImageClient) ImageToImage(ctx context.Context, req ImageToImageRe
 		return nil, fmt.Errorf("marshal chat request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/chat/completions", bytes.NewReader(data))
+	httpReq, err := http.NewRequestWithContext(reqCtx, http.MethodPost, c.baseURL+"/chat/completions", bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +203,8 @@ func (c *OpenAIImageClient) generate(ctx context.Context, req TextToImageReq, ex
 		N:      openai.Int(int64(batchSize)),
 	}
 
-	opts := make([]option.RequestOption, 0, len(extraOpts)+4)
+	opts := make([]option.RequestOption, 0, len(extraOpts)+5)
+	opts = append(opts, option.WithRequestTimeout(openAIImagePerImageTimeout))
 	if isNanoBananaModel(c.model) {
 		opts = append(opts, option.WithJSONSet("aspect_ratio", imageSizeToAspectRatio(imageSize)))
 	} else {

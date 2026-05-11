@@ -36,13 +36,16 @@ type TextToImageReq struct {
 }
 
 type ImageToImageReq struct {
-	Model          string  `json:"model"`
-	Prompt         string  `json:"prompt"`
-	NegativePrompt string  `json:"negative_prompt,omitempty"`
-	ImageURL       string  `json:"image_url"` // 参考图 URL
-	ImageSize      string  `json:"image_size"`
-	Strength       float64 `json:"strength,omitempty"` // 风格迁移强度 0-1
-	GuidanceScale  float64 `json:"guidance_scale,omitempty"`
+	Model          string `json:"model"`
+	Prompt         string `json:"prompt"`
+	NegativePrompt string `json:"negative_prompt,omitempty"`
+	ImageURL       string `json:"image_url"` // 主参考图 URL（风格图 / 单图 provider 仅取此项）
+	// ExtraImageURLs 额外参考图（如产品图）。仅多图 provider（OpenAI chat/completions）消费；
+	// 单图 provider（QwenEdit、SiliconFlow 原生）忽略，不报错。
+	ExtraImageURLs []string `json:"extra_image_urls,omitempty"`
+	ImageSize      string   `json:"image_size"`
+	Strength       float64  `json:"strength,omitempty"` // 风格迁移强度 0-1
+	GuidanceScale  float64  `json:"guidance_scale,omitempty"`
 }
 
 type GenerateResult struct {

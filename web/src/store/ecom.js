@@ -236,8 +236,19 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
         progress: 0,
         url: null,
       }))
+    } else if (data.module === 'clone' && Array.isArray(data.clone_assets) && data.clone_assets.length) {
+      // 克隆模块：每张风格参考图对应 1 张输出，image_type=clone_{i} 与后端占位资产对齐
+      items.value = data.clone_assets.map((_, i) => ({
+        image_type: `clone_${i}`,
+        label: `风格克隆 ${i + 1}`,
+        status: 'pending',
+        phase: 'pending',
+        progress: 0,
+        url: null,
+        asset_no: '',
+      }))
     } else if (Array.isArray(data.reference_assets) && data.reference_assets.length) {
-      // white_bg / clone / ratio_convert 等无 image_type 的模块：
+      // white_bg / ratio_convert 等无 image_type 的模块：
       // 按参考图张数预填占位，避免提交后 3 秒轮询窗口内只显示 1 张兜底 loading，
       // 然后第一次拿到后端 items 时突然从 1 变成 N。
       items.value = data.reference_assets.map((_, i) => ({
@@ -258,6 +269,8 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
       module: data.module || '',
       image_type: data.image_type || '',
       ratio: data.ratio || '1:1',
+      // 克隆模块：记录风格图数量，刷新页面可重建 N 张占位
+      clone_assets_count: data.module === 'clone' && Array.isArray(data.clone_assets) ? data.clone_assets.length : 0,
     }))
 
     useEcomConfigStore().deductPower(creditCost)
@@ -409,7 +422,7 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
     const raw = localStorage.getItem('ecom_pending_task')
     if (!raw) return
     try {
-      const { task_no, image_type, ratio } = JSON.parse(raw)
+      const { task_no, image_type, ratio, module: pendingModule, clone_assets_count } = JSON.parse(raw)
       const res = await httpGet(`/api/ai-commerce/tasks/${task_no}`)
       if (res.code !== 0) { localStorage.removeItem('ecom_pending_task'); return }
       const taskData = res.data
@@ -445,6 +458,17 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
           phase: 'pending',
           progress: 0,
           url: null,
+        }))
+      } else if (pendingModule === 'clone' && clone_assets_count > 0) {
+        // 克隆模块刷新恢复：按风格图数量重建 N 张占位
+        items.value = Array.from({ length: clone_assets_count }, (_, i) => ({
+          image_type: `clone_${i}`,
+          label: `风格克隆 ${i + 1}`,
+          status: 'pending',
+          phase: 'pending',
+          progress: 0,
+          url: null,
+          asset_no: '',
         }))
       }
       startPolling()
