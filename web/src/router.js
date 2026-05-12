@@ -17,50 +17,14 @@ const routes = [
   {
     name: 'home',
     path: '/home',
-    redirect: '/chat',
+    redirect: '/ecom',
     component: () => import('@/views/Home.vue'),
     children: [
-      {
-        name: 'chat',
-        path: '/chat',
-        meta: { title: '创作中心' },
-        component: () => import('@/views/ChatPlus.vue'),
-      },
-      {
-        name: 'chat-id',
-        path: '/chat/:id',
-        meta: { title: '创作中心' },
-        component: () => import('@/views/ChatPlus.vue'),
-      },
-      {
-        name: 'image-mj',
-        path: '/mj',
-        meta: { title: 'MidJourney 绘画中心' },
-        component: () => import('@/views/ImageMj.vue'),
-      },
-      {
-        name: 'image-sd',
-        path: '/sd',
-        meta: { title: 'stable diffusion 绘画中心' },
-        component: () => import('@/views/ImageSd.vue'),
-      },
       {
         name: 'member',
         path: '/member',
         meta: { title: '会员充值中心' },
         component: () => import('@/views/Member.vue'),
-      },
-      {
-        name: 'chat-app',
-        path: '/apps',
-        meta: { title: '应用中心' },
-        component: () => import('@/views/ChatApps.vue'),
-      },
-      {
-        name: 'images',
-        path: '/images-wall',
-        meta: { title: '作品展示' },
-        component: () => import('@/views/ImagesWall.vue'),
       },
       {
         name: 'user-invitation',
@@ -75,45 +39,9 @@ const routes = [
         component: () => import('@/views/PowerLog.vue'),
       },
       {
-        name: 'xmind',
-        path: '/xmind',
-        meta: { title: '思维导图' },
-        component: () => import('@/views/MarkMap.vue'),
-      },
-      {
-        name: 'dalle',
-        path: '/dalle',
-        meta: { title: 'DALLE-3' },
-        component: () => import('@/views/Dalle.vue'),
-      },
-      {
-        name: 'suno',
-        path: '/suno',
-        meta: { title: 'Suno音乐创作' },
-        component: () => import('@/views/Suno.vue'),
-      },
-      {
         name: 'ExternalLink',
         path: '/external',
         component: () => import('@/views/ExternalPage.vue'),
-      },
-      {
-        name: 'song',
-        path: '/song/:id',
-        meta: { title: 'Suno音乐播放' },
-        component: () => import('@/views/Song.vue'),
-      },
-      {
-        name: 'video',
-        path: '/video',
-        meta: { title: '视频创作中心' },
-        component: () => import('@/views/Video.vue'),
-      },
-      {
-        name: 'jimeng',
-        path: '/jimeng',
-        meta: { title: '即梦AI' },
-        component: () => import('@/views/Jimeng.vue'),
       },
       {
         name: 'ecom',
@@ -123,13 +51,6 @@ const routes = [
       },
     ],
   },
-  {
-    name: 'chat-export',
-    path: '/chat/export',
-    meta: { title: '导出会话记录' },
-    component: () => import('@/views/ChatExport.vue'),
-  },
-
   {
     name: 'login',
     path: '/login',

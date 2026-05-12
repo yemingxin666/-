@@ -171,8 +171,8 @@ const githubURL = ref(import.meta.env.VITE_GITHUB_URL)
 
 /**
  * 从路径名中提取第一个路径段
- * @param pathname - URL 的路径名部分，例如 '/chat/12345'
- * @returns 第一个路径段（不含斜杠），例如 'chat'，如果不存在则返回 null
+ * @param pathname - URL 的路径名部分，例如 '/ecom'
+ * @returns 第一个路径段（不含斜杠），例如 'ecom'，如果不存在则返回 null
  */
 const extractFirstSegment = (pathname) => {
   const segments = pathname.split('/').filter((segment) => segment.length > 0)

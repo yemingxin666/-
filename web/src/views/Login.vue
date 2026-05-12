@@ -70,7 +70,7 @@ const handleRegisterSuccess = () => {
   if (isMobile()) {
     router.push('/mobile')
   } else {
-    router.push('/chat')
+    router.push('/ecom')
   }
 }
 
