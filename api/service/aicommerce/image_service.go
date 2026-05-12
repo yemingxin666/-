@@ -727,20 +727,32 @@ func (s *ImageService) resolveCopywriteImageURLs(ctx context.Context, userID uin
 
 func (s *ImageService) resolveCopywriteVisionModel(ctx context.Context) (*model.AiModel, error) {
 	var m model.AiModel
+	// 优先尝试 gpt-4o
 	err := s.db.WithContext(ctx).
 		Where("name = ? AND model_type = ? AND status = ?", "gpt-4o", "chat", "active").
 		First(&m).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("未找到可用的视觉模型配置(gpt-4o chat)，请在后台 geekai_ai_models 中配置")
+			// gpt-4o 不存在，查找任意可用的 chat 模型
+			err = s.db.WithContext(ctx).
+				Where("model_type = ? AND status = ?", "chat", "active").
+				Order("sort_order ASC, id ASC").
+				First(&m).Error
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, fmt.Errorf("未找到可用的视觉识别模型（model_type='chat', status='active'），请在后台 geekai_ai_models 中配置")
+				}
+				return nil, err
+			}
+		} else {
+			return nil, err
 		}
-		return nil, err
 	}
 	if strings.TrimSpace(m.ApiKey) == "" {
-		return nil, fmt.Errorf("视觉模型 gpt-4o 的 api_key 未配置")
+		return nil, fmt.Errorf("视觉模型 %s 的 api_key 未配置", m.Name)
 	}
 	if strings.TrimSpace(m.ApiEndpoint) == "" {
-		return nil, fmt.Errorf("视觉模型 gpt-4o 的 api_endpoint 未配置")
+		return nil, fmt.Errorf("视觉模型 %s 的 api_endpoint 未配置", m.Name)
 	}
 	return &m, nil
 }
