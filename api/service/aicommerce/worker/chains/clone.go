@@ -15,9 +15,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// cloneStyleImageTimeout 克隆设计单张风格参考图的处理超时预算。
-// 业务规则：按风格参考图张数计算超时，每张 90s；当前每次调用处理 1 张风格图。
-const cloneStyleImageTimeout = 90 * time.Second
+// clonePerImageTimeout 克隆设计中每张输入图片（风格图+产品图）的超时预算。
+// 克隆请求实际传入 1 张风格图 + N 张产品图，总超时 = (1+N) * 120s。
+// pic2api 多图生图耗时较长，120s/张留足余量。
+const clonePerImageTimeout = 120 * time.Second
 
 var cloneLogger = logger2.GetLogger()
 
@@ -148,8 +149,9 @@ func processOneClone(
 
 	updatePhaseAsset(db, placeholderID, PhaseGenerating)
 
-	// 按风格参考图张数分配超时：每张 90s，processOneClone 单次仅处理 1 张
-	callCtx, cancel := context.WithTimeout(ctx, cloneStyleImageTimeout)
+	// 动态超时：1 张风格图 + N 张产品图，每张 90s
+	totalImages := 1 + len(productURLs)
+	callCtx, cancel := context.WithTimeout(ctx, time.Duration(totalImages)*clonePerImageTimeout)
 	defer cancel()
 
 	result, err := imgClient.ImageToImage(callCtx, provider.ImageToImageReq{
