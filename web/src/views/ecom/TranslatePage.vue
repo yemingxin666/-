@@ -40,8 +40,21 @@
   </aside>
 
   <section class="result-panel">
-    <div v-if="taskStore.outputs.length || taskStore.isRunning" class="result-grid">
-      <template v-if="taskStore.outputs.length">
+    <div v-if="taskStore.items.length || taskStore.outputs.length || taskStore.isRunning" class="result-grid">
+      <template v-if="taskStore.items.length">
+        <EcomResultCard
+          v-for="item in taskStore.items"
+          :key="item.image_type || item.asset_no"
+          :url="item.url"
+          :status="item.status"
+          :progress="item.progress"
+          :phase="item.phase"
+          :ratio="taskStore.submittedRatio"
+          @regenerate="submit"
+          @delete="taskStore.reset()"
+        />
+      </template>
+      <template v-else-if="taskStore.outputs.length">
         <EcomResultCard v-for="(url, i) in taskStore.outputs" :key="i" :url="url" @regenerate="submit" @delete="taskStore.reset()" />
       </template>
       <EcomResultCard
@@ -55,7 +68,7 @@
       />
     </div>
     <EcomHistoryGroup />
-    <div v-if="!taskStore.currentTask && !taskStore.outputs.length && !taskStore.history.length" class="result-empty">
+    <div v-if="!taskStore.currentTask && !taskStore.outputs.length && !taskStore.items.length && !taskStore.history.length" class="result-empty">
       <svg class="empty-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="8" y="14" width="64" height="52" rx="4" stroke="currentColor" stroke-width="2.5"/>
         <path d="M8 46l18-14 14 12 10-8 22 16" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>

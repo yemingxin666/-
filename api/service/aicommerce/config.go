@@ -17,9 +17,14 @@ type Config struct {
 	BaiduOCRAPIKey    string `toml:"baidu_ocr_api_key"`
 	BaiduOCRSecretKey string `toml:"baidu_ocr_secret_key"`
 
-	// 百度翻译
+	// 百度翻译（已废弃，图文翻译已迁移至阿里云 TranslateImage）
 	BaiduTranslateAppID  string `toml:"baidu_translate_app_id"`
 	BaiduTranslateSecret string `toml:"baidu_translate_secret"`
+
+	// 阿里云图片翻译（TranslateImage API），复用 vision 凭证或单独配置
+	AliyunTranslateAccessKeyID     string `toml:"aliyun_translate_access_key_id"`
+	AliyunTranslateAccessKeySecret string `toml:"aliyun_translate_access_key_secret"`
+	AliyunTranslateRegion          string `toml:"aliyun_translate_region"`
 
 	// 阿里云视觉（背景移除）
 	AliyunVisionAccessKeyID     string `toml:"aliyun_vision_access_key_id"`

@@ -22,14 +22,15 @@ import (
 var logger = logger2.GetLogger()
 
 type Dispatcher struct {
-	db            *gorm.DB
-	rdb           *redis.Client
-	cfg           aicommerce.Config
-	uploadManager *oss.UploaderManager
-	tongyi        *provider.Tongyi
-	vision        *provider.AliyunVision
-	baiduOCR      *provider.BaiduOCR
-	baiduTrans    *provider.BaiduTranslate
+	db              *gorm.DB
+	rdb             *redis.Client
+	cfg             aicommerce.Config
+	uploadManager   *oss.UploaderManager
+	tongyi          *provider.Tongyi
+	vision          *provider.AliyunVision
+	aliyunTranslate *provider.AliyunTranslate
+	baiduOCR        *provider.BaiduOCR
+	baiduTrans      *provider.BaiduTranslate
 }
 
 func NewDispatcher(db *gorm.DB, rdb *redis.Client, cfg aicommerce.Config, uploadManager *oss.UploaderManager) *Dispatcher {
@@ -54,15 +55,30 @@ func NewDispatcher(db *gorm.DB, rdb *redis.Client, cfg aicommerce.Config, upload
 		logger.Infof("[aicommerce] vision relay disabled；假定业务 OSS 与 vision region 同区域")
 	}
 
+	// 阿里云图片翻译：优先用独立配置，为空时回退到 vision 凭证
+	translateAK := cfg.AliyunTranslateAccessKeyID
+	translateSK := cfg.AliyunTranslateAccessKeySecret
+	translateRegion := cfg.AliyunTranslateRegion
+	if translateAK == "" {
+		translateAK = cfg.AliyunVisionAccessKeyID
+	}
+	if translateSK == "" {
+		translateSK = cfg.AliyunVisionAccessKeySecret
+	}
+	if translateRegion == "" {
+		translateRegion = "cn-hangzhou"
+	}
+
 	return &Dispatcher{
-		db:            db,
-		rdb:           rdb,
-		cfg:           cfg,
-		uploadManager: uploadManager,
-		tongyi:        provider.NewTongyi(cfg.TongyiBaseURL, cfg.TongyiAPIKey, cfg.TongyiModel),
-		vision:        vision,
-		baiduOCR:      provider.NewBaiduOCR(cfg.BaiduOCRAppID, cfg.BaiduOCRAPIKey, cfg.BaiduOCRSecretKey),
-		baiduTrans:    provider.NewBaiduTranslate(cfg.BaiduTranslateAppID, cfg.BaiduTranslateSecret),
+		db:              db,
+		rdb:             rdb,
+		cfg:             cfg,
+		uploadManager:   uploadManager,
+		tongyi:          provider.NewTongyi(cfg.TongyiBaseURL, cfg.TongyiAPIKey, cfg.TongyiModel),
+		vision:          vision,
+		aliyunTranslate: provider.NewAliyunTranslate(translateAK, translateSK, translateRegion),
+		baiduOCR:        provider.NewBaiduOCR(cfg.BaiduOCRAppID, cfg.BaiduOCRAPIKey, cfg.BaiduOCRSecretKey),
+		baiduTrans:      provider.NewBaiduTranslate(cfg.BaiduTranslateAppID, cfg.BaiduTranslateSecret),
 	}
 }
 
@@ -150,7 +166,7 @@ func (d *Dispatcher) execute(ctx context.Context, taskID uint) {
 		}
 		execErr = chains.RunRatioConvert(ctx, d.db, imgClient, uploader, d.cfg, &task)
 	case model.ModuleTranslate:
-		execErr = chains.RunTranslate(ctx, d.db, d.baiduOCR, d.baiduTrans, d.cfg, &task)
+		execErr = chains.RunTranslate(ctx, d.db, d.aliyunTranslate, d.uploadManager.GetUploadHandler(), d.cfg, &task)
 	case model.ModuleEdit:
 		imgClient, err := d.resolveImageClient(ctx, &task)
 		if err != nil {

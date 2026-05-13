@@ -5,19 +5,22 @@ import (
 	"fmt"
 	"geekai/service/aicommerce"
 	"geekai/service/aicommerce/provider"
+	"geekai/service/oss"
 	"geekai/store/model"
-	"strings"
 	"time"
 
 	"gorm.io/gorm"
 )
 
-// RunTranslate 图文翻译链：OCR → 翻译 → 重合成
+const translatePerImageTimeout = 3 * time.Minute
+
+// RunTranslate 图文翻译链：调用阿里云 TranslateImage API（OCR → 翻译 → 文字重渲染一站式完成），
+// 下载结果图并上传到自有 OSS。
 func RunTranslate(
 	ctx context.Context,
 	db *gorm.DB,
-	ocr *provider.BaiduOCR,
-	trans *provider.BaiduTranslate,
+	translator *provider.AliyunTranslate,
+	uploader oss.Uploader,
 	cfg aicommerce.Config,
 	task *model.AiImageTask,
 ) error {
@@ -27,71 +30,101 @@ func RunTranslate(
 	if targetLang == "" {
 		targetLang = "en"
 	}
-
 	if len(assetNos) == 0 {
 		return fmt.Errorf("translate: no image provided")
 	}
 
-	var srcAsset model.AiImageAsset
-	if err := db.Where("asset_no = ? AND user_id = ?", assetNos[0], task.UserId).First(&srcAsset).Error; err != nil {
-		return fmt.Errorf("source asset not found: %w", err)
+	total := len(assetNos)
+	updateProgress(db, task, 5)
+
+	placeholderIDs := make([]uint, total)
+	for i := range assetNos {
+		placeholderIDs[i] = createPhaseAsset(db, task, translateImageType(i), PhaseRendering)
 	}
 
-	updateProgress(db, task, 15)
+	var (
+		firstErr  error
+		succeeded int
+	)
 
-	// 1. OCR 识别文字及坐标
-	words, err := ocr.Recognize(ctx, signedURL(srcAsset.OssKey, cfg))
-	if err != nil {
-		return fmt.Errorf("OCR: %w", err)
-	}
+	for i, assetNo := range assetNos {
+		imageType := translateImageType(i)
+		placeholderID := placeholderIDs[i]
 
-	updateProgress(db, task, 40)
-
-	// 2. 批量翻译所有文字
-	ocrData := make([]map[string]interface{}, 0, len(words))
-	for _, w := range words {
-		translated, err := trans.Translate(ctx, w.Words, "auto", langCode(targetLang))
-		if err != nil {
-			translated = w.Words // 翻译失败保留原文
+		if err := processOneTranslate(
+			ctx, db, translator, uploader, cfg, task,
+			assetNo, targetLang, imageType, placeholderID,
+		); err != nil {
+			saveTypeError(db, task, imageType, err.Error(), placeholderID)
+			if firstErr == nil {
+				firstErr = err
+			}
+		} else {
+			succeeded++
 		}
-		ocrData = append(ocrData, map[string]interface{}{
-			"original":   w.Words,
-			"translated": translated,
-			"location":   w.Location,
-		})
+
+		progress := 10 + int(float64(i+1)/float64(total)*85)
+		if progress > 95 {
+			progress = 95
+		}
+		updateProgress(db, task, progress)
 	}
 
-	updateProgress(db, task, 75)
-
-	// 3. 将翻译结果存入资产元数据（实际 Canvas 重合成需前端或单独服务处理）
-	taskIDCopy := task.Id
-	asset := model.AiImageAsset{
-		AssetNo:   fmt.Sprintf("tr_%d_%d", task.Id, time.Now().UnixNano()),
-		TaskId:    &taskIDCopy,
-		UserId:    task.UserId,
-		Kind:      model.AssetKindGenerated,
-		OssBucket: cfg.OSSBucket,
-		OssKey:    srcAsset.OssKey, // 原图，前端根据 metadata_json 重合成文字
-		MimeType:  srcAsset.MimeType,
-		Width:     srcAsset.Width,
-		Height:    srcAsset.Height,
-		MetadataJSON: model.JSONMap{
-			"translate_data": ocrData,
-			"target_lang":    targetLang,
-		},
-		CreatedAt: time.Now(),
+	if succeeded == 0 {
+		if firstErr != nil {
+			return firstErr
+		}
+		return fmt.Errorf("translate: no image translated successfully")
 	}
-	return db.Create(&asset).Error
+
+	return nil
 }
 
-// langCode 将语言名称转换为百度翻译语言代码
-func langCode(lang string) string {
-	m := map[string]string{
-		"zh-CN": "zh", "en-US": "en", "ja-JP": "jp",
-		"ko-KR": "kor", "en": "en", "zh": "zh",
+func processOneTranslate(
+	ctx context.Context,
+	db *gorm.DB,
+	translator *provider.AliyunTranslate,
+	uploader oss.Uploader,
+	cfg aicommerce.Config,
+	task *model.AiImageTask,
+	assetNo, targetLang, imageType string,
+	placeholderID uint,
+) error {
+	srcURLs := resolveAssetURLs(db, task.UserId, []string{assetNo}, cfg, uploader)
+	if len(srcURLs) == 0 {
+		return fmt.Errorf("translate: source asset %s not found or inaccessible", assetNo)
 	}
-	if code, ok := m[strings.ToLower(lang)]; ok {
-		return code
+
+	updatePhaseAsset(db, placeholderID, PhaseGenerating)
+
+	callCtx, cancel := context.WithTimeout(ctx, translatePerImageTimeout)
+	defer cancel()
+
+	finalURL, err := translator.TranslateImage(callCtx, srcURLs[0], "auto", targetLang)
+	if err != nil {
+		return fmt.Errorf("translate image %s: %w", assetNo, err)
 	}
-	return "en"
+
+	updatePhaseAsset(db, placeholderID, PhaseUploading)
+
+	ossKey, err := ossUploadURL(uploader, finalURL)
+	if err != nil {
+		return fmt.Errorf("upload translated image %s: %w", assetNo, err)
+	}
+
+	var srcAsset model.AiImageAsset
+	db.Where("asset_no = ? AND user_id = ?", assetNo, task.UserId).First(&srcAsset)
+
+	return finalizePhaseAsset(db, placeholderID, ossKey, cfg.OSSBucket, "image/png",
+		srcAsset.Width, srcAsset.Height,
+		model.JSONMap{
+			"image_type":       imageType,
+			"source_asset_no":  assetNo,
+			"target_lang":      targetLang,
+			"translate_engine": "aliyun_translate_image",
+		})
+}
+
+func translateImageType(index int) string {
+	return fmt.Sprintf("translate_%d", index)
 }
