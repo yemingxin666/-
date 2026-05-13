@@ -18,7 +18,7 @@ import (
 // clonePerImageTimeout 克隆设计中每张输入图片（风格图+产品图）的超时预算。
 // 克隆请求实际传入 1 张风格图 + N 张产品图，总超时 = (1+N) * 120s。
 // pic2api 多图生图耗时较长，120s/张留足余量。
-const clonePerImageTimeout = 120 * time.Second
+const clonePerImageTimeout = 5 * time.Minute
 
 var cloneLogger = logger2.GetLogger()
 

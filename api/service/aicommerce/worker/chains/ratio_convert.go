@@ -5,8 +5,6 @@ import (
 	"context"
 	"fmt"
 	"image"
-	"image/color"
-	"image/draw"
 	"image/jpeg"
 	"image/png"
 	"io"
@@ -30,7 +28,7 @@ const (
 )
 
 // ratioConvertPerImageTimeout outpaint 模式每张图的超时预算
-const ratioConvertPerImageTimeout = 90 * time.Second
+const ratioConvertPerImageTimeout = 5 * time.Minute
 
 // RunRatioConvert 比例转换链：支持多图批量处理，裁剪 or Outpaint
 //
@@ -191,24 +189,16 @@ func processOneRatioConvert(
 			return "", fmt.Errorf("crop %s: %w", srcAsset.AssetNo, err)
 		}
 	} else {
-		// Outpaint 扩图：先本地 padding，再交给 AI 仅融合边缘
-		// 目的：原图区域作为强参考（含文字/logo 等），AI 主要工作是把 padding 边缘自然融入
+		// Outpaint 扩图：调用 AI img2img
 		callCtx, cancel := context.WithTimeout(ctx, ratioConvertPerImageTimeout)
 		defer cancel()
-
-		// 1. 下载原图 → padding 到目标比例 → 上传 OSS 作为参考输入
-		paddedKey, paddedURL, perr := buildPaddedReference(callCtx, uploader, srcURL[0], task.Ratio, cfg)
-		if perr != nil {
-			return "", fmt.Errorf("pad reference %s: %w", srcAsset.AssetNo, perr)
-		}
-		_ = paddedKey // 中间产物，仅用于本次 AI 调用，不入库
 
 		genReq := provider.ImageToImageReq{
 			Model:     task.Model,
 			Prompt:    buildOutpaintPrompt(task.Ratio),
-			ImageURL:  paddedURL,
+			ImageURL:  srcURL[0],
 			ImageSize: provider.RatioToSize(task.Ratio),
-			Strength:  0.2, // 低强度：尽量保留原图内容，仅让 AI 平滑融合 padding 边缘
+			Strength:  0.3,
 		}
 		var result *provider.GenerateResult
 		result, err = imgClient.ImageToImage(callCtx, genReq)
@@ -398,158 +388,13 @@ func canCropSmart(asset model.AiImageAsset, targetRatio string) bool {
 // 严禁改动中心原图区域（文字、logo、产品必须 1:1 保留）。
 func buildOutpaintPrompt(ratio string) string {
 	return fmt.Sprintf(
-		"The input image is already in %s aspect ratio. "+
-			"The center area contains the COMPLETE original image including all text, logos, watermarks, products and graphics — preserve it EXACTLY pixel-by-pixel, do NOT redraw, modify, translate, or remove any text or graphic in the center. "+
-			"Only the outer border padding area needs natural blending: extend the existing background pattern smoothly so the edges look seamless. "+
-			"Keep lighting, color tone, and texture consistent with the original. "+
-			"Do NOT add new objects, text, or watermarks anywhere.",
+		"Extend the image background naturally to fill a %s aspect ratio. "+
+			"CRITICAL: preserve ALL text, logos, watermarks, and product visuals in the original image EXACTLY as they are — do NOT remove, redraw, translate, or alter any text or graphic element. "+
+			"Only extend the background area beyond the original image edges. "+
+			"Generate a clean, professional e-commerce background that seamlessly blends with the existing edges. "+
+			"Keep lighting and color consistent.",
 		ratio,
 	)
-}
-
-// buildPaddedReference 下载原图，按目标比例 padding 后上传，返回 OSS key 与可访问 URL。
-// padding 策略：原图居中，四周用边缘像素颜色作为底色填充（避免纯白突兀，便于 AI 融合）。
-// 失败时调用方应回退或直接报错。
-func buildPaddedReference(
-	ctx context.Context,
-	uploader oss.Uploader,
-	srcURL string,
-	targetRatio string,
-	cfg aicommerce.Config,
-) (ossKey, accessURL string, err error) {
-	// 1. 下载原图
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srcURL, nil)
-	if err != nil {
-		return "", "", fmt.Errorf("create request: %w", err)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", "", fmt.Errorf("download image: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("download image: status %d", resp.StatusCode)
-	}
-	imgData, err := io.ReadAll(io.LimitReader(resp.Body, 20<<20))
-	if err != nil {
-		return "", "", fmt.Errorf("read image: %w", err)
-	}
-
-	// 2. 解码
-	srcImg, _, err := image.Decode(bytes.NewReader(imgData))
-	if err != nil {
-		return "", "", fmt.Errorf("decode image: %w", err)
-	}
-	srcBounds := srcImg.Bounds()
-	srcW, srcH := srcBounds.Dx(), srcBounds.Dy()
-	if srcW <= 0 || srcH <= 0 {
-		return "", "", fmt.Errorf("invalid source size: %dx%d", srcW, srcH)
-	}
-
-	// 3. 计算 padded 画布尺寸：以原图为基准，按目标比例向短边方向扩展
-	rw, rh := parseRatio(targetRatio)
-	if rw <= 0 || rh <= 0 {
-		return "", "", fmt.Errorf("invalid target ratio: %s", targetRatio)
-	}
-	canvasW, canvasH := computePaddedCanvas(srcW, srcH, rw, rh)
-	if canvasW == srcW && canvasH == srcH {
-		// 已是目标比例，无需 padding，直接复用原图 URL
-		// 上层用 srcURL 也能跑，但为保持调用方一致这里仍返回原 URL
-		return "", srcURL, nil
-	}
-
-	// 4. 绘制 padded 画布：用原图四边像素的平均色作为底色
-	bgColor := edgeAverageColor(srcImg)
-	canvas := image.NewRGBA(image.Rect(0, 0, canvasW, canvasH))
-	draw.Draw(canvas, canvas.Bounds(), &image.Uniform{C: bgColor}, image.Point{}, draw.Src)
-
-	// 5. 原图居中贴入
-	offX := (canvasW - srcW) / 2
-	offY := (canvasH - srcH) / 2
-	draw.Draw(canvas,
-		image.Rect(offX, offY, offX+srcW, offY+srcH),
-		srcImg, srcBounds.Min, draw.Src)
-
-	// 6. 编码 PNG 并上传 OSS
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, canvas); err != nil {
-		return "", "", fmt.Errorf("encode padded png: %w", err)
-	}
-	ossKey, err = uploader.PutBytes(buf.Bytes(), ".png")
-	if err != nil {
-		return "", "", fmt.Errorf("upload padded image: %w", err)
-	}
-
-	// 7. 构造可访问 URL（公网 bucket 直接拼接；私有 bucket 需签名，此处沿用 signedURL）
-	accessURL = signedURL(ossKey, cfg)
-	return ossKey, accessURL, nil
-}
-
-// computePaddedCanvas 计算 padding 后的画布尺寸：
-// 保持原图完整，按目标比例向短边方向扩展画布。
-func computePaddedCanvas(srcW, srcH, ratioW, ratioH int) (canvasW, canvasH int) {
-	targetAspect := float64(ratioW) / float64(ratioH)
-	srcAspect := float64(srcW) / float64(srcH)
-
-	if math.Abs(srcAspect-targetAspect) < 1e-6 {
-		// 比例已匹配
-		return srcW, srcH
-	}
-	if srcAspect < targetAspect {
-		// 源图偏窄（更高）：加宽
-		canvasH = srcH
-		canvasW = int(math.Round(float64(srcH) * targetAspect))
-		if canvasW < srcW {
-			canvasW = srcW
-		}
-		return canvasW, canvasH
-	}
-	// 源图偏宽：加高
-	canvasW = srcW
-	canvasH = int(math.Round(float64(srcW) / targetAspect))
-	if canvasH < srcH {
-		canvasH = srcH
-	}
-	return canvasW, canvasH
-}
-
-// edgeAverageColor 计算原图四边像素的平均色，作为 padding 底色（比纯白更易融合）。
-func edgeAverageColor(img image.Image) color.RGBA {
-	b := img.Bounds()
-	var rSum, gSum, bSum, count uint64
-	addPixel := func(x, y int) {
-		r, g, bl, _ := img.At(x, y).RGBA()
-		rSum += uint64(r >> 8)
-		gSum += uint64(g >> 8)
-		bSum += uint64(bl >> 8)
-		count++
-	}
-	// 采样四边，每边间隔取一定步长，避免遍历过密
-	step := b.Dx() / 64
-	if step < 1 {
-		step = 1
-	}
-	for x := b.Min.X; x < b.Max.X; x += step {
-		addPixel(x, b.Min.Y)
-		addPixel(x, b.Max.Y-1)
-	}
-	step = b.Dy() / 64
-	if step < 1 {
-		step = 1
-	}
-	for y := b.Min.Y; y < b.Max.Y; y += step {
-		addPixel(b.Min.X, y)
-		addPixel(b.Max.X-1, y)
-	}
-	if count == 0 {
-		return color.RGBA{R: 255, G: 255, B: 255, A: 255}
-	}
-	return color.RGBA{
-		R: uint8(rSum / count),
-		G: uint8(gSum / count),
-		B: uint8(bSum / count),
-		A: 255,
-	}
 }
 
 // ratioConvertImageType 生成与前端占位 image_type 对齐的标识

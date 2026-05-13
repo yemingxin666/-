@@ -21,7 +21,7 @@ import (
 // imageTypeTimeout 单个图片类型（= 1 张输出图）的生图调用超时预算。
 // 主图/详情页链路每个 image_type 对应 1 次 ImageToImage/TextToImage 调用，
 // 与克隆设计风格图保持一致：每张图 90s。
-const imageTypeTimeout = 90 * time.Second
+const imageTypeTimeout = 5 * time.Minute
 
 // RunMainImage 主图/详情页生成链
 func RunMainImage(
