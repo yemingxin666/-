@@ -10,10 +10,21 @@
 </template>
 
 <script setup>
-import { provide, ref } from 'vue'
+import { provide, ref, watch } from 'vue'
 import EcomTopNav from './EcomTopNav.vue'
 
-const activeModule = ref('main_image')
+const STORAGE_KEY = 'ecom_active_module'
+const validModules = ['main_image', 'detail_page', 'white_bg', 'clone', 'ratio_convert', 'translate', 'gallery']
+
+// 从 localStorage 恢复上次选中的 tab，无效值则回退到默认
+const saved = localStorage.getItem(STORAGE_KEY)
+const initial = validModules.includes(saved) ? saved : 'main_image'
+const activeModule = ref(initial)
+
+// tab 切换时自动持久化
+watch(activeModule, (val) => {
+  localStorage.setItem(STORAGE_KEY, val)
+})
 
 // 提供给子页面用于跨 tab 跳转（如编辑提交后跳到历史图库）
 const setModule = (mod) => { activeModule.value = mod }
