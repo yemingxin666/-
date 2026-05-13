@@ -116,7 +116,8 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 	if err != nil {
 		return nil, err
 	}
-	// 白底图按 rembg 单价 × 参考图张数；克隆按 12 × 风格参考图张数；其他按单张计费
+	// 白底图按 rembg 单价 × 参考图张数；克隆按 12 × 风格参考图张数；
+	// 比例转换按模式单价 × 参考图张数；其他按单张计费
 	// 依赖 deductCredit 的原子扣减（WHERE power >= cost）天然防 TOCTOU，无需预读余额
 	creditCost := unitPrice
 	switch req.Module {
@@ -142,6 +143,17 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 			return nil, fmt.Errorf("请上传至少 1 张产品参考图")
 		}
 		creditCost = CloneCreditPerImage * n
+	case ModuleRatioConvert:
+		n := len(req.ReferenceAssets)
+		if n == 0 {
+			return nil, fmt.Errorf("请上传至少 1 张参考图")
+		}
+		// 根据转换模式确定单价：crop=3, outpaint=10
+		rcUnit := 10
+		if req.StyleDesc == "crop" {
+			rcUnit = 3
+		}
+		creditCost = rcUnit * n
 	}
 
 	// 2. 扣减算力（调用 GeeKAI 现有机制）

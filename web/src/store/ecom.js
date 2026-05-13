@@ -25,10 +25,10 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
 
   const ratios = [
     { value: '1:1',   label: '1:1',   w: 48, h: 48 },
+    { value: '3:4',   label: '3:4',   w: 42, h: 56 },
     { value: '4:3',   label: '4:3',   w: 56, h: 42 },
     { value: '16:9',  label: '16:9',  w: 64, h: 36 },
     { value: '9:16',  label: '9:16',  w: 36, h: 64 },
-    { value: '3:4',   label: '3:4',   w: 42, h: 56 },
     { value: '3:2',   label: '3:2',   w: 60, h: 40 },
     { value: '2:3',   label: '2:3',   w: 40, h: 60 },
     { value: '21:9',  label: '21:9',  w: 70, h: 30 },

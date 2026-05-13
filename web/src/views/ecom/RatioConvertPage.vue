@@ -6,7 +6,7 @@
       <el-form label-position="top">
         <el-form-item>
           <template #label>
-            <span class="field-label">参考图片 <em>(最多3张产品白底图)</em></span>
+            <span class="field-label">参考图片 <em>(最多3张)</em></span>
           </template>
           <EcomImageUploader v-model:assetNos="assetNos" :multiple="true" :limit="3" />
         </el-form-item>
@@ -20,15 +20,26 @@
           <template #label>
             <span class="field-label">转换模式 <em>(Convert Mode)</em></span>
           </template>
-          <el-radio-group v-model="mode" class="mode-group">
-            <el-radio value="crop">裁剪（保留中心）</el-radio>
-            <el-radio value="outpaint">扩图（AI 填充边缘）</el-radio>
-          </el-radio-group>
+          <div class="mode-cards">
+            <button
+              v-for="m in modeOptions"
+              :key="m.value"
+              class="mode-card"
+              :class="{ active: mode === m.value }"
+              type="button"
+              @click="mode = m.value"
+            >
+              <span class="mode-icon">{{ m.icon }}</span>
+              <span class="mode-name">{{ m.name }}</span>
+              <span class="mode-desc">{{ m.desc }}</span>
+              <span class="mode-cost">{{ m.cost }} 积分/张</span>
+            </button>
+          </div>
         </el-form-item>
       </el-form>
     </div>
     <div class="panel-footer">
-      <EcomCreditBadge :estimated-cost="mode === 'outpaint' ? 10 : 3" class="footer-credit" />
+      <EcomCreditBadge :estimated-cost="estimatedCost" class="footer-credit" />
       <el-tooltip
         :content="!assetNos.length ? '请先上传参考图片' : ''"
         :disabled="assetNos.length > 0"
@@ -71,7 +82,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useEcomConfigStore, useEcomTaskStore } from '@/store/ecom'
 import EcomImageUploader from '@/components/ecom/EcomImageUploader.vue'
@@ -86,9 +97,20 @@ const assetNos = ref([])
 const ratio = ref('1:1')
 const mode = ref('crop')
 
+const modeOptions = [
+  { value: 'crop',     icon: '✂️', name: '裁剪', desc: '保留图片中心区域', cost: 3 },
+  { value: 'outpaint', icon: '✨', name: '扩图', desc: 'AI 智能填充边缘',  cost: 10 },
+]
+
+const estimatedCost = computed(() => {
+  const unitCost = mode.value === 'outpaint' ? 10 : 3
+  const count = Math.max(1, assetNos.value.length)
+  return unitCost * count
+})
+
 const submit = async () => {
   if (!assetNos.value.length) { ElMessage.warning('请先上传图片'); return }
-  const cost = mode.value === 'outpaint' ? 10 : 3
+  const cost = estimatedCost.value
   if (configStore.userPower < cost) { ElMessage.error('算力不足，请充值'); return }
   try {
     await taskStore.submitTask('/api/ai-commerce/ratio-conversions', {
@@ -144,9 +166,26 @@ onUnmounted(() => taskStore.stopPolling())
   background: var(--theme-bg);
 }
 
-.mode-group { display: flex; flex-direction: column; gap: 8px; }
-:deep(.mode-group .el-radio) { height: auto; margin-right: 0; }
-:deep(.el-radio__label) { font-size: 13px; color: var(--text-color); }
+.mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  background: var(--gray-btn-bg);
+  border: 1.5px solid var(--theme-border-primary);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.mode-card:hover { border-color: var(--el-color-primary-light-3); background: var(--theme-bg); }
+.mode-card.active { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9, #f0f4ff); }
+.mode-icon { font-size: 20px; line-height: 1; }
+.mode-name { font-size: 13px; font-weight: 700; color: var(--text-color); }
+.mode-desc { font-size: 11px; color: var(--text-secondary); line-height: 1.3; }
+.mode-cost { font-size: 11px; font-weight: 600; color: var(--el-color-primary); margin-top: 2px; }
 
 .panel-footer {
   flex-shrink: 0;
