@@ -6,6 +6,7 @@ import (
 	"geekai/core"
 	"geekai/core/middleware"
 	"geekai/core/types"
+	logger2 "geekai/logger"
 	"geekai/service/aicommerce"
 	"geekai/service/oss"
 	"geekai/store/model"
@@ -18,6 +19,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+var logger = logger2.GetLogger()
 
 func encodeBase64(data []byte) string {
 	return base64.StdEncoding.EncodeToString(data)
@@ -240,18 +243,34 @@ func (h *ImageHandler) DeleteTask(c *gin.Context) {
 	userID := h.getLoginUserID(c)
 	taskNo := c.Param("task_no")
 
-	now := time.Now()
-	result := h.db.Model(&model.AiImageTask{}).
-		Where("task_no = ? AND user_id = ? AND deleted_at IS NULL", taskNo, userID).
-		Update("deleted_at", &now)
-	if result.Error != nil {
-		resp.ERROR(c, "删除失败: "+result.Error.Error())
-		return
-	}
-	if result.RowsAffected == 0 {
+	var task model.AiImageTask
+	if err := h.db.Where("task_no = ? AND user_id = ? AND deleted_at IS NULL", taskNo, userID).
+		First(&task).Error; err != nil {
 		resp.ERROR(c, "任务不存在或已删除")
 		return
 	}
+
+	now := time.Now()
+	if err := h.db.Model(&model.AiImageTask{}).Where("id = ?", task.Id).
+		Update("deleted_at", &now).Error; err != nil {
+		resp.ERROR(c, "删除失败: "+err.Error())
+		return
+	}
+
+	// 查询关联 assets，删除 OSS 文件并软删 asset 记录
+	var assets []model.AiImageAsset
+	h.db.Where("task_id = ? AND oss_key != '' AND deleted_at IS NULL", task.Id).Find(&assets)
+	for _, a := range assets {
+		if err := h.uploader.Delete(a.OssKey); err != nil {
+			logger.Warnf("DeleteTask: OSS delete failed, asset_no=%s oss_key=%s err=%v", a.AssetNo, a.OssKey, err)
+		}
+	}
+	if len(assets) > 0 {
+		h.db.Model(&model.AiImageAsset{}).
+			Where("task_id = ? AND deleted_at IS NULL", task.Id).
+			Update("deleted_at", &now)
+	}
+
 	resp.SUCCESS(c, nil)
 }
 
@@ -266,6 +285,13 @@ func (h *ImageHandler) DeleteAsset(c *gin.Context) {
 		First(&asset).Error; err != nil {
 		resp.ERROR(c, "资产不存在或已删除")
 		return
+	}
+
+	// 删除 OSS 文件
+	if asset.OssKey != "" {
+		if err := h.uploader.Delete(asset.OssKey); err != nil {
+			logger.Warnf("DeleteAsset: OSS delete failed, asset_no=%s oss_key=%s err=%v", asset.AssetNo, asset.OssKey, err)
+		}
 	}
 
 	now := time.Now()
