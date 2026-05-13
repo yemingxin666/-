@@ -97,12 +97,7 @@
             </el-button>
           </div>
           <div class="menu-bot-item">
-            <a @click="router.push('/')" class="link-button">
-              <i class="iconfont icon-house"></i>
-            </a>
-            <div class="pl-1">
-              <ThemeChange size="small" />
-            </div>
+            <ThemeChange size="small" />
           </div>
         </div>
       </div>
@@ -137,6 +132,18 @@
         <LoginDialog @success="loginSuccess" @hide="store.setShowLoginDialog(false)" />
       </div>
     </el-dialog>
+
+    <!-- 网站公告对话框 -->
+    <el-dialog v-model="showNotice" :show-close="true" class="notice-dialog" title="网站公告">
+      <div class="notice">
+        <div v-html="notice"></div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="dismissNotice" type="primary">我知道了，不再显示</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -149,8 +156,11 @@ import { removeUserToken } from '@/store/session'
 import { useSharedStore } from '@/store/sharedata'
 import { showMessageError } from '@/utils/dialog'
 import { httpGet } from '@/utils/http'
+import { isMobile } from '@/utils/libs'
 import { UserFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import MarkdownIt from 'markdown-it'
+import emoji from 'markdown-it-emoji'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -168,6 +178,11 @@ const showConfigDialog = ref(false)
 const license = ref({ de_copy: true })
 const showLoginDialog = ref(false)
 const githubURL = ref(import.meta.env.VITE_GITHUB_URL)
+
+const showNotice = ref(false)
+const notice = ref('')
+const noticeKey = 'HOME_NOTICE'
+const md = new MarkdownIt({ breaks: true, html: true, linkify: true, typographer: true }).use(emoji)
 
 /**
  * 从路径名中提取第一个路径段
@@ -231,6 +246,11 @@ const changeNav = (item) => {
 }
 
 onMounted(() => {
+  if (isMobile()) {
+    router.push('/mobile/index')
+    return
+  }
+
   curPath.value = router.currentRoute.value.path
   getSystemInfo()
     .then((res) => {
@@ -265,6 +285,20 @@ onMounted(() => {
     })
   curPath.value = '/' + getFirstPathSegment(window.location.href)
   init()
+
+  httpGet('/api/config/get?key=notice')
+    .then((res) => {
+      try {
+        notice.value = md.render(res.data['content'])
+        const oldNotice = localStorage.getItem(noticeKey)
+        if (oldNotice !== notice.value && notice.value.length > 10) {
+          showNotice.value = true
+        }
+      } catch (e) {
+        console.warn(e)
+      }
+    })
+    .catch(() => {})
 })
 
 const init = () => {
@@ -286,6 +320,11 @@ const logout = function () {
     })
 }
 
+const dismissNotice = () => {
+  localStorage.setItem(noticeKey, notice.value)
+  showNotice.value = false
+}
+
 const loginSuccess = () => {
   init()
   store.setShowLoginDialog(false)
@@ -297,4 +336,34 @@ const loginSuccess = () => {
 <style lang="scss" scoped>
 @use '../assets/css/custom-scroll.scss' as *;
 @use '../assets/css/home.scss' as *;
+</style>
+
+<style lang="scss">
+.notice-dialog {
+  .el-dialog__header {
+    padding-bottom: 0;
+  }
+
+  .el-dialog__body {
+    padding: 0 20px;
+
+    h2 {
+      margin: 20px 0 15px 0;
+    }
+
+    ol,
+    ul {
+      padding-left: 10px;
+    }
+
+    ol {
+      list-style: decimal-leading-zero;
+      padding-left: 20px;
+    }
+
+    ul {
+      list-style: inside;
+    }
+  }
+}
 </style>

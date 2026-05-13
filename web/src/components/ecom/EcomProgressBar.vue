@@ -54,8 +54,8 @@ const phaseTextMap = { rendering: '渲染中', generating: '生图中', uploadin
 <style scoped>
 .progress-wrap { margin: 12px 0; }
 .progress-info { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; }
-.status-text { color: #606266; }
-.task-no { color: #c0c4cc; font-family: monospace; }
+.status-text { color: var(--text-color); }
+.task-no { color: var(--text-secondary); font-family: monospace; }
 .mt-2 { margin-top: 8px; }
 .type-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 :deep(.type-chip .el-tag) { display: inline-flex; align-items: center; gap: 3px; cursor: default; }

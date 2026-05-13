@@ -415,8 +415,8 @@ onUnmounted(() => taskStore.stopPolling())
     box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
   }
   &:disabled {
-    background: #e2e8f0;
-    color: #94a3b8;
+    background: var(--disabled-btn-bg);
+    color: var(--disabled-btn-color);
     box-shadow: none;
     cursor: not-allowed;
   }

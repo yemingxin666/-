@@ -188,7 +188,7 @@ onUnmounted(() => taskStore.stopPolling())
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 .submit-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4); }
-.submit-btn:disabled { background: #e2e8f0; color: #94a3b8; box-shadow: none; cursor: not-allowed; }
+.submit-btn:disabled { background: var(--disabled-btn-bg); color: var(--disabled-btn-color); box-shadow: none; cursor: not-allowed; }
 
 .result-panel { flex: 1; padding: 24px; overflow-y: auto; background: var(--gray-btn-bg); }
 .result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }

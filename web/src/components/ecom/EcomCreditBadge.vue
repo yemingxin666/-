@@ -22,10 +22,10 @@ defineProps({ estimatedCost: { type: Number, default: 0 } })
   align-items: center;
   gap: 5px;
   font-size: 13px;
-  color: #595959;
+  color: var(--text-color);
 }
-.label { color: #8c8c8c; }
+.label { color: var(--text-secondary); }
 .value { color: #fa8c16; font-weight: 700; }
-.sep { color: #d9d9d9; }
+.sep { color: var(--theme-border-primary); }
 .cost { color: #f5222d; font-weight: 700; }
 </style>

@@ -42,7 +42,7 @@ provide('setEcomModule', setModule)
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #fff;
+  background: var(--theme-bg);
   z-index: 20;
 }
 .ecom-header {

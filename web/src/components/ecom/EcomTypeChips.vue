@@ -112,6 +112,7 @@ const toggleAll = () => {
   border: 1px solid var(--theme-border-primary);
   border-radius: 10px;
   background: var(--theme-bg);
+  color: var(--text-color);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;

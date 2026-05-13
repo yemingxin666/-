@@ -14,7 +14,7 @@
   <!-- 积分不足引导弹窗 (7.18) -->
   <el-dialog v-model="showRechargeDialog" title="算力不足" width="360px" :close-on-click-modal="false">
     <div style="text-align:center;padding:16px 0">
-      <p style="margin-bottom:16px;color:#606266">当前算力余额不足，请充值后继续使用</p>
+      <p style="margin-bottom:16px;color:var(--text-secondary)">当前算力余额不足，请充值后继续使用</p>
       <el-button type="primary" @click="goRecharge">立即充值</el-button>
       <el-button @click="showRechargeDialog = false" style="margin-left:8px">稍后再说</el-button>
     </div>

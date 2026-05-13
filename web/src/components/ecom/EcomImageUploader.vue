@@ -106,5 +106,5 @@ const onRemove = (_, list) => {
 
 <style scoped>
 .uploader-wrap { display: flex; flex-direction: column; gap: 6px; }
-.uploader-tip { font-size: 12px; color: #909399; }
+.uploader-tip { font-size: 12px; color: var(--text-secondary); }
 </style>
