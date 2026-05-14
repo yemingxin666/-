@@ -22,6 +22,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
+	"gorm.io/gorm"
 )
 
 const CodeStorePrefix = "/verify/codes/"
@@ -70,6 +71,7 @@ type SmsHandler struct {
 
 func NewSmsHandler(
 	app *core.AppServer,
+	db *gorm.DB,
 	client *redis.Client,
 	sms *sms.SmsManager,
 	smtp *service.SmtpService,
@@ -79,7 +81,7 @@ func NewSmsHandler(
 		sms:            sms,
 		captchaService: captcha,
 		smtp:           smtp,
-		BaseHandler:    BaseHandler{App: app}}
+		BaseHandler:    BaseHandler{App: app, DB: db}}
 }
 
 // RegisterRoutes 注册路由
