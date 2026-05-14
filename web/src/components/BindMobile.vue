@@ -11,7 +11,7 @@
             <el-input v-model="form.code" maxlength="6" />
           </el-col>
           <el-col :span="8" style="padding-left: 10px">
-            <send-msg :receiver="form.mobile" size="default" type="mobile" />
+            <send-msg :receiver="form.mobile" size="default" type="mobile" scene="bind_mobile" />
           </el-col>
         </el-row>
       </el-form-item>

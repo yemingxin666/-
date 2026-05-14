@@ -21,7 +21,7 @@
                       placeholder="请输入验证码"
                       class="code-input"
                     />
-                    <send-msg size="large" :receiver="form.mobile" type="mobile" />
+                    <send-msg size="large" :receiver="form.mobile" type="mobile" scene="reset_pass" />
                   </div>
                 </el-form-item>
               </el-tab-pane>
@@ -41,7 +41,7 @@
                       placeholder="请输入验证码"
                       class="code-input"
                     />
-                    <send-msg size="large" :receiver="form.email" type="email" />
+                    <send-msg size="large" :receiver="form.email" type="email" scene="reset_pass" />
                   </div>
                 </el-form-item>
               </el-tab-pane>

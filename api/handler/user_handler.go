@@ -92,6 +92,34 @@ func (h *UserHandler) RegisterRoutes() {
 	}
 }
 
+func (h *UserHandler) verifySmsCode(ctx context.Context, scene, receiver, input string) (codeKey string, ok bool) {
+	receiver = strings.TrimSpace(receiver)
+	if strings.Contains(receiver, "@") {
+		receiver = strings.ToLower(receiver)
+	}
+	codeKey = smsCodeKey(scene, receiver)
+	attemptKey := smsAttemptKey(scene, receiver)
+
+	code, err := h.redis.Get(ctx, codeKey).Result()
+	if err != nil {
+		return codeKey, false
+	}
+
+	attempts, _ := h.redis.Incr(ctx, attemptKey).Result()
+	_ = h.redis.Expire(ctx, attemptKey, smsCodeTTL).Err()
+
+	if attempts > int64(smsMaxVerifyAttempts) {
+		_ = h.redis.Del(ctx, codeKey, attemptKey).Err()
+		return codeKey, false
+	}
+	if code != input {
+		return codeKey, false
+	}
+
+	_ = h.redis.Del(ctx, attemptKey).Err()
+	return codeKey, true
+}
+
 // Register user register
 func (h *UserHandler) Register(c *gin.Context) {
 	// parameters process
@@ -140,22 +168,22 @@ func (h *UserHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// 检查验证码
-	var key string
-	if data.RegWay == "email" {
-		key = CodeStorePrefix + data.Email
-		code, err := h.redis.Get(c, key).Result()
-		if err != nil || code != data.Code {
-			resp.ERROR(c, "验证码错误")
-			return
-		}
-	} else if data.RegWay == "mobile" {
-		key = CodeStorePrefix + data.Mobile
-		code, err := h.redis.Get(c, key).Result()
-		if err != nil || code != data.Code {
-			resp.ERROR(c, "验证码错误")
-			return
-		}
+	var codeKey string
+	var verified bool
+	switch data.RegWay {
+	case "email":
+		codeKey, verified = h.verifySmsCode(c, SmsSceneRegister, data.Email, data.Code)
+	case "mobile":
+		codeKey, verified = h.verifySmsCode(c, SmsSceneRegister, data.Mobile, data.Code)
+	case "username", "":
+		verified = true
+	default:
+		resp.ERROR(c, types.InvalidArgs)
+		return
+	}
+	if !verified {
+		resp.ERROR(c, "验证码错误或已过期")
+		return
 	}
 
 	// check if the username is existing
@@ -191,6 +219,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 		return
 	}
 
+	_ = h.redis.Del(c, codeKey).Err()
 	resp.SUCCESS(c, gin.H{"token": token, "user_id": user.Id, "username": user.Username})
 }
 
@@ -591,13 +620,13 @@ func (h *UserHandler) ResetPass(c *gin.Context) {
 	}
 
 	session := h.DB.Session(&gorm.Session{})
-	var key string
+	var receiver string
 	if data.Type == "email" {
 		session = session.Where("email", data.Email)
-		key = CodeStorePrefix + data.Email
+		receiver = data.Email
 	} else if data.Type == "mobile" {
 		session = session.Where("mobile", data.Mobile)
-		key = CodeStorePrefix + data.Mobile
+		receiver = data.Mobile
 	} else {
 		resp.ERROR(c, "验证类别错误")
 		return
@@ -609,10 +638,9 @@ func (h *UserHandler) ResetPass(c *gin.Context) {
 		return
 	}
 
-	// 检查验证码
-	code, err := h.redis.Get(c, key).Result()
-	if err != nil || code != data.Code {
-		resp.ERROR(c, "验证码错误")
+	codeKey, ok := h.verifySmsCode(c, SmsSceneResetPass, receiver, data.Code)
+	if !ok {
+		resp.ERROR(c, "验证码错误或已过期")
 		return
 	}
 
@@ -621,7 +649,7 @@ func (h *UserHandler) ResetPass(c *gin.Context) {
 	if err != nil {
 		resp.ERROR(c, err.Error())
 	} else {
-		h.redis.Del(c, key)
+		_ = h.redis.Del(c, codeKey).Err()
 		resp.SUCCESS(c)
 	}
 }
@@ -637,11 +665,9 @@ func (h *UserHandler) BindMobile(c *gin.Context) {
 		return
 	}
 
-	// 检查验证码
-	key := CodeStorePrefix + data.Mobile
-	code, err := h.redis.Get(c, key).Result()
-	if err != nil || code != data.Code {
-		resp.ERROR(c, "验证码错误")
+	codeKey, ok := h.verifySmsCode(c, SmsSceneBindMobile, data.Mobile, data.Code)
+	if !ok {
+		resp.ERROR(c, "验证码错误或已过期")
 		return
 	}
 
@@ -655,13 +681,12 @@ func (h *UserHandler) BindMobile(c *gin.Context) {
 
 	userId := h.GetLoginUserId(c)
 
-	err = h.DB.Model(&item).Where("id", userId).UpdateColumn("mobile", data.Mobile).Error
-	if err != nil {
+	if err := h.DB.Model(&item).Where("id", userId).UpdateColumn("mobile", data.Mobile).Error; err != nil {
 		resp.ERROR(c, err.Error())
 		return
 	}
 
-	_ = h.redis.Del(c, key) // 删除短信验证码
+	_ = h.redis.Del(c, codeKey).Err()
 	resp.SUCCESS(c)
 }
 
@@ -676,11 +701,9 @@ func (h *UserHandler) BindEmail(c *gin.Context) {
 		return
 	}
 
-	// 检查验证码
-	key := CodeStorePrefix + data.Email
-	code, err := h.redis.Get(c, key).Result()
-	if err != nil || code != data.Code {
-		resp.ERROR(c, "验证码错误")
+	codeKey, ok := h.verifySmsCode(c, SmsSceneBindEmail, data.Email, data.Code)
+	if !ok {
+		resp.ERROR(c, "验证码错误或已过期")
 		return
 	}
 
@@ -694,13 +717,12 @@ func (h *UserHandler) BindEmail(c *gin.Context) {
 
 	userId := h.GetLoginUserId(c)
 
-	err = h.DB.Model(&item).Where("id", userId).UpdateColumn("email", data.Email).Error
-	if err != nil {
+	if err := h.DB.Model(&item).Where("id", userId).UpdateColumn("email", data.Email).Error; err != nil {
 		resp.ERROR(c, err.Error())
 		return
 	}
 
-	_ = h.redis.Del(c, key) // 删除短信验证码
+	_ = h.redis.Del(c, codeKey).Err()
 	resp.SUCCESS(c)
 }
 

@@ -156,7 +156,7 @@
                   </el-input>
                 </el-col>
                 <el-col :span="12">
-                  <send-msg size="large" :receiver="data.mobile" type="mobile" />
+                  <send-msg size="large" :receiver="data.mobile" type="mobile" scene="register" />
                 </el-col>
               </el-row>
             </div>
@@ -189,7 +189,7 @@
                   </el-input>
                 </el-col>
                 <el-col :span="12">
-                  <send-msg size="large" :receiver="data.email" type="email" />
+                  <send-msg size="large" :receiver="data.email" type="email" scene="register" />
                 </el-col>
               </el-row>
             </div>

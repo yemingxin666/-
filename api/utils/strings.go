@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"regexp"
 	"strings"
 	"time"
@@ -40,6 +41,16 @@ func RandomNumber(bit int) int {
 
 	rand2.NewSource(time.Now().UnixNano())
 	return rand2.Intn(maxNum-minNum+1) + minNum
+}
+
+func SecureRandomNumber(length int) int {
+	minNum := intPow(10, length-1)
+	maxNum := intPow(10, length)
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(maxNum-minNum)))
+	if err != nil {
+		return RandomNumber(length)
+	}
+	return int(n.Int64()) + minNum
 }
 
 func intPow(x, y int) int {
