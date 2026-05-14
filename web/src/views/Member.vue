@@ -90,7 +90,7 @@
               </div>
             </el-col>
           </el-row>
-          <el-empty description="暂无数据" v-else :image="nodata" />
+          <el-empty v-else-if="!loading" description="暂无数据" :image="nodata" />
           <div class="box-card">
             <h2 class="headline">消费账单</h2>
 
