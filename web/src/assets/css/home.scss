@@ -3,26 +3,12 @@
   position: relative;
   height: 100vh;
 
-  .big-top-title {
-    padding-top: 10px;
-  }
-
-  .top-collapse {
-    padding-top: 10px;
-
-    img {
-      width: 24px !important;
-      height: 24px !important;
-    }
-  }
-
   .tab-box {
     align-items: center;
-    background-color: var(--card-bg);
-    border-right: 1px solid var(--line-box);
-    // height: 100%;
-    // position: fixed;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--sidebar-border);
     height: 100vh;
+    transition: background 0.3s ease;
 
     .title {
       font-size: 28px;
@@ -39,12 +25,8 @@
       height: 44px;
       object-fit: cover;
       border-radius: 50%;
-      border: 2px solid #754ff6;
-      background: #fff;
-    }
-
-    .marr {
-      margin-right: 4px;
+      border: 2px solid var(--sidebar-accent);
+      background: rgba(255, 255, 255, 0.1);
     }
   }
 }
@@ -57,41 +39,11 @@
   .iconfont {
     font-size: 24px;
     cursor: pointer;
-    color: var(--text-color);
+    color: var(--sidebar-icon-color);
   }
 
   .icon-new-chat {
     color: #ffffff;
-  }
-}
-
-.menu-list-collapse {
-  .flex-center-col {
-    flex-direction: row;
-  }
-
-  .menu-list-item {
-    height: 38px;
-    line-height: 38px;
-
-    .iconfont {
-      font-size: 16px;
-    }
-  }
-
-  .menu-list-item:hover,
-  .active {
-    background: rgba(79, 89, 102, 0.122);
-    border-radius: 8px;
-
-    .el-icon {
-      background: transparent !important;
-    }
-  }
-
-  .menu-title {
-    font-size: 15px !important;
-    margin-bottom: 0 !important;
   }
 }
 
@@ -106,15 +58,21 @@
   }
 
   .menu-list-item {
-    // margin-bottom: 10px;
-    margin: 0 8px 8px;
+    margin: 0 6px 4px;
     cursor: pointer;
-    font-weight: 550;
-    color: var(--text-theme-color);
+    font-weight: 500;
+    color: var(--sidebar-text-color);
+    padding: 8px 0;
+    border-radius: 12px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
 
     &:hover {
+      background: var(--sidebar-hover-bg);
+      color: var(--sidebar-hover-color);
+
       .el-icon {
-        background: rgba(79, 89, 102, 0.122);
+        background: transparent;
       }
     }
 
@@ -125,11 +83,25 @@
       overflow: hidden;
       border-radius: 50%;
       font-size: 20px;
+      transition: all 0.2s;
     }
 
     &.active {
-      color: var(--text-theme-color);
+      color: var(--sidebar-active-color);
+      background: var(--sidebar-active-bg);
       font-weight: 700;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: -6px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 20px;
+        border-radius: 0 3px 3px 0;
+        background: var(--sidebar-accent);
+      }
     }
   }
 
@@ -140,21 +112,22 @@
   }
 
   .bot-line {
-    width: 100%;
+    width: calc(100% - 16px);
     height: 1px;
-    background: var(--line-box);
-    margin: 20px 0 10px 0;
+    background: var(--sidebar-border);
+    margin: 20px auto 10px;
   }
 
   .menu-title {
-    font-size: 12px;
-    margin-bottom: 6px;
+    font-size: 11px;
+    margin-bottom: 2px;
+    letter-spacing: 0.01em;
   }
 
   .icon-house,
   .icon-github {
     font-size: 20px;
-    color: #754ff6;
+    color: var(--sidebar-accent);
     cursor: pointer;
   }
 
@@ -167,9 +140,7 @@
 
 .right-main {
   height: 100%;
-  // background: #f5f7fd;
-  background: var(--theme-bg-all);
-  // background-image: linear-gradient(180deg, rgba(247, 232, 255, .54), rgba(191, 223, 255, .35));
+  background: var(--main-content-bg);
   width: 100%;
 
   .loginMask {
@@ -186,13 +157,12 @@
     right: 8px;
     z-index: 999;
     top: 0;
-    // width: 100%;
     align-items: center;
     justify-content: flex-end;
   }
 
   .btn-go {
-    background: #754ff6;
+    background: var(--sidebar-accent);
     margin: 10px 10px 0;
   }
 }
@@ -200,12 +170,13 @@
 .el-popper {
   .more-menus {
     li {
-      padding: 0px 15px;
+      padding: 0 15px;
       cursor: pointer;
-      border-radius: 5px;
-      margin: 5px 0;
+      border-radius: 8px;
+      margin: 4px 0;
       height: 38px;
       line-height: 38px;
+      transition: background 0.2s;
 
       .el-image {
         position: relative;
@@ -214,12 +185,12 @@
       }
 
       &:hover {
-        background: rgba(183, 176, 255, 0.5);
+        background: var(--sidebar-hover-bg);
       }
     }
 
     li.active {
-      background: rgba(183, 176, 255, 0.5);
+      background: var(--sidebar-active-bg);
     }
   }
 

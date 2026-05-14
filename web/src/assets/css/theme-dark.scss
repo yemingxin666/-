@@ -106,6 +106,19 @@
   --van-nav-bar-background: #1b244a;
   --van-dropdown-menu-background: #141a36;
 
+  // 侧边栏
+  --sidebar-bg: #111738;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-icon-color: #94a3b8;
+  --sidebar-text-color: #94a3b8;
+  --sidebar-hover-bg: rgba(99, 102, 241, 0.12);
+  --sidebar-hover-color: #a5b4fc;
+  --sidebar-active-bg: rgba(99, 102, 241, 0.18);
+  --sidebar-active-color: #a5b4fc;
+  --sidebar-accent: #818cf8;
+  // 主内容区
+  --main-content-bg: rgb(13, 20, 53);
+
   // 引用快样式
   --quote-bg-color: #1f243f;
   --quote-text-color: #fff;

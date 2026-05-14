@@ -6,6 +6,7 @@
 
 <script setup>
 import { checkSession, getSystemInfo } from '@/store/cache'
+import { getUserToken } from '@/store/session'
 import { useSharedStore } from '@/store/sharedata'
 import { ElConfigProvider } from 'element-plus'
 import { onMounted } from 'vue'
@@ -39,11 +40,13 @@ onMounted(() => {
     link.href = res.data.logo
     document.head.appendChild(link)
   })
-  checkSession()
-    .then(() => {
-      store.setIsLogin(true)
-    })
-    .catch(() => {})
+  if (getUserToken()) {
+    checkSession()
+      .then(() => {
+        store.setIsLogin(true)
+      })
+      .catch(() => {})
+  }
 
   // 设置主题
   document.documentElement.setAttribute('data-theme', store.theme)
