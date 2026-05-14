@@ -1,5 +1,5 @@
 <template>
-  <div class="layout">
+  <div v-if="authReady" class="layout">
     <div class="tab-box">
       <!-- <div class="flex-center-col pt-2 mb-2">
         <div class="flex flex-center-col">
@@ -177,6 +177,7 @@ const routerViewKey = ref(0)
 const showConfigDialog = ref(false)
 const license = ref({ de_copy: true })
 const showLoginDialog = ref(false)
+const authReady = ref(false)
 const githubURL = ref(import.meta.env.VITE_GITHUB_URL)
 
 const showNotice = ref(false)
@@ -252,6 +253,21 @@ onMounted(() => {
   }
 
   curPath.value = router.currentRoute.value.path
+  curPath.value = '/' + getFirstPathSegment(window.location.href)
+
+  // 优先认证，通过后再加载页面数据
+  checkSession()
+    .then((user) => {
+      loginUser.value = user
+      authReady.value = true
+      loadPageData()
+    })
+    .catch(() => {
+      router.push('/login')
+    })
+})
+
+const loadPageData = () => {
   getSystemInfo()
     .then((res) => {
       logo.value = res.data.logo
@@ -260,11 +276,10 @@ onMounted(() => {
     .catch((e) => {
       ElMessage.error('获取系统配置失败：' + e.message)
     })
-  // 获取菜单
+
   httpGet('/api/menu/list')
     .then((res) => {
       mainNavs.value = res.data
-      // 根据窗口的高度计算应该显示多少菜单
       const rows = Math.floor((window.innerHeight - 100) / 75)
       if (res.data.length > rows) {
         mainNavs.value = res.data.slice(0, rows)
@@ -283,8 +298,6 @@ onMounted(() => {
       license.value = { de_copy: false }
       showMessageError('获取 License 配置：' + e.message)
     })
-  curPath.value = '/' + getFirstPathSegment(window.location.href)
-  init()
 
   httpGet('/api/config/get?key=notice')
     .then((res) => {
@@ -297,14 +310,6 @@ onMounted(() => {
       } catch (e) {
         console.warn(e)
       }
-    })
-    .catch(() => {})
-})
-
-const init = () => {
-  checkSession()
-    .then((user) => {
-      loginUser.value = user
     })
     .catch(() => {})
 }
@@ -326,9 +331,14 @@ const dismissNotice = () => {
 }
 
 const loginSuccess = () => {
-  init()
+  checkSession()
+    .then((user) => {
+      loginUser.value = user
+      authReady.value = true
+      loadPageData()
+    })
+    .catch(() => {})
   store.setShowLoginDialog(false)
-  // 刷新组件
   routerViewKey.value += 1
 }
 </script>
