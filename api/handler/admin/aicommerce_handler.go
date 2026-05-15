@@ -459,29 +459,34 @@ func (h *AiCommerceHandler) ListTasks(c *gin.Context) {
 		pageSize = 100
 	}
 
-	query := h.DB.Model(&model.AiImageTask{}).Where("deleted_at IS NULL")
-	if userID != "" {
-		query = query.Where("user_id = ?", userID)
-	}
-	if module != "" {
-		query = query.Where("module = ?", module)
-	}
-	if status != "" {
-		query = query.Where("status = ?", status)
-	}
-	if startDate != "" {
-		query = query.Where("created_at >= ?", startDate)
-	}
-	if endDate != "" {
-		query = query.Where("created_at <= ?", endDate+" 23:59:59")
+	buildWhere := func(tx *gorm.DB) *gorm.DB {
+		tx = tx.Where("deleted_at IS NULL")
+		if userID != "" {
+			tx = tx.Where("user_id = ?", userID)
+		}
+		if module != "" {
+			tx = tx.Where("module = ?", module)
+		}
+		if status != "" {
+			tx = tx.Where("status = ?", status)
+		}
+		if startDate != "" {
+			tx = tx.Where("created_at >= ?", startDate)
+		}
+		if endDate != "" {
+			tx = tx.Where("created_at <= ?", endDate+" 23:59:59")
+		}
+		return tx
 	}
 
 	var total int64
-	query.Count(&total)
+	buildWhere(h.DB.Model(&model.AiImageTask{})).Count(&total)
 
 	var tasks []model.AiImageTask
 	offset := (page - 1) * pageSize
-	if err := query.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&tasks).Error; err != nil {
+	query := buildWhere(h.DB.Model(&model.AiImageTask{}))
+	if err := query.Select("id, task_no, user_id, module, image_type, platform, language, ratio, status, progress, model, credit_cost, provider, error_code, error_message, started_at, finished_at, created_at, updated_at").
+		Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&tasks).Error; err != nil {
 		resp.ERROR(c, err.Error())
 		return
 	}
