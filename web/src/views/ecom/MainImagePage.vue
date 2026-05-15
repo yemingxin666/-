@@ -65,7 +65,7 @@
           <template #label>
             <span class="field-label">图片类型 <em>(要几张选几个)</em></span>
           </template>
-          <EcomTypeChips :types="sortedTypes" v-model="selectedTypes" />
+          <EcomTypeChips :types="sortedTypes" v-model="selectedTypes" :validate="typeValidate" />
         </el-form-item>
 
         <el-form-item>
@@ -230,7 +230,8 @@ const form = ref({
 
 const { recommendedRatio } = useEcomLinkage(form)
 
-const selectedTypes = ref(['traffic_cover'])
+const selectedTypes = ref([])
+const typeValidate = ref(true)
 const copywriting = ref(false)
 
 watch(() => form.value.selling_points, () => {
@@ -284,7 +285,7 @@ const copywrite = async () => {
 }
 
 const submit = async () => {
-  if (!selectedTypes.value.length) { ElMessage.warning('请至少选择一种图片类型'); return }
+  if (!selectedTypes.value.length) { typeValidate.value = true; ElMessage.warning('请至少选择一种图片类型'); return }
   if (configStore.userPower < estimatedCost.value) {
     ElMessage.error('算力不足，请充值后重试'); return
   }

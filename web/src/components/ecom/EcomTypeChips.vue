@@ -52,7 +52,7 @@ const touched = ref(false)
 const showError = computed(() => props.modelValue.length === 0)
 const isAllSelected = computed(() => props.modelValue.length === props.types.length)
 
-watch(() => props.validate, (v) => { if (v) touched.value = true })
+watch(() => props.validate, (v) => { if (v) touched.value = true }, { immediate: true })
 
 const toggle = (val) => {
   touched.value = true
