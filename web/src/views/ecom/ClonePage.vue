@@ -140,9 +140,9 @@
           :progress="item.progress"
           :phase="item.phase"
           :ratio="taskStore.submittedRatio"
+          :deletable="false"
           :editable="item.status === 'succeeded' && !!item.asset_no"
           @edit="(p) => openEdit(taskStore.currentTask, item, p)"
-          @delete="taskStore.reset()"
         />
       </template>
       <template v-else-if="taskStore.outputs.length">
@@ -150,7 +150,7 @@
           v-for="(url, i) in taskStore.outputs"
           :key="i"
           :url="url"
-          @delete="taskStore.reset()"
+          :deletable="false"
         />
       </template>
       <EcomResultCard
@@ -159,7 +159,7 @@
         :status="taskStore.currentTask?.status || 'pending'"
         :progress="taskStore.currentTask?.progress || 0"
         :ratio="taskStore.submittedRatio"
-        @delete="taskStore.reset()"
+        :deletable="false"
       />
     </div>
     <EcomHistoryGroup @edit="(task, item, p) => openEdit(task, item, p)" />

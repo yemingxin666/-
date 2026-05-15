@@ -151,9 +151,9 @@
           :phase="item.phase"
           :image-type="item.image_type"
           :ratio="taskStore.submittedRatio"
+          :deletable="false"
           :editable="item.status === 'succeeded' && !!item.asset_no"
           @edit="(p) => openEdit(taskStore.currentTask, item, p)"
-          @delete="taskStore.reset()"
         />
       </template>
       <template v-else>
@@ -162,7 +162,7 @@
           :key="i"
           :url="url"
           :ratio="taskStore.submittedRatio"
-          @delete="taskStore.reset()"
+          :deletable="false"
         />
       </template>
     </div>

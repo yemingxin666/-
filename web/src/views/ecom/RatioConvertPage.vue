@@ -55,7 +55,7 @@
   <section class="result-panel">
     <div v-if="taskStore.outputs.length || taskStore.isRunning" class="result-grid">
       <template v-if="taskStore.outputs.length">
-        <EcomResultCard v-for="(url, i) in taskStore.outputs" :key="i" :url="url" @regenerate="submit" @delete="taskStore.reset()" />
+        <EcomResultCard v-for="(url, i) in taskStore.outputs" :key="i" :url="url" :deletable="false" @regenerate="submit" />
       </template>
       <EcomResultCard
         v-else
@@ -63,8 +63,8 @@
         :status="taskStore.currentTask?.status || 'pending'"
         :progress="taskStore.currentTask?.progress || 0"
         :ratio="taskStore.submittedRatio"
+        :deletable="false"
         @regenerate="submit"
-        @delete="taskStore.reset()"
       />
     </div>
     <EcomHistoryGroup />

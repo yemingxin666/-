@@ -54,8 +54,8 @@
           :progress="item.progress"
           :phase="item.phase"
           :ratio="taskStore.submittedRatio"
+          :deletable="false"
           @regenerate="submit"
-          @delete="taskStore.reset()"
         />
       </template>
       <template v-else-if="taskStore.outputs.length">
@@ -63,8 +63,8 @@
           v-for="(url, i) in taskStore.outputs"
           :key="i"
           :url="url"
+          :deletable="false"
           @regenerate="submit"
-          @delete="taskStore.reset()"
         />
       </template>
       <EcomResultCard
@@ -73,8 +73,8 @@
         :status="taskStore.currentTask?.status || 'pending'"
         :progress="taskStore.currentTask?.progress || 0"
         :ratio="taskStore.submittedRatio"
+        :deletable="false"
         @regenerate="submit"
-        @delete="taskStore.reset()"
       />
     </div>
     <EcomHistoryGroup />

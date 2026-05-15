@@ -60,22 +60,24 @@
       <button v-else class="tool-btn" @click="emit('regenerate', props.imageType)" title="重新生成" aria-label="重新生成该图片">
         <el-icon><Refresh /></el-icon>
       </button>
-      <el-popconfirm
-        v-if="confirmDelete"
-        :title="confirmDeleteTitle"
-        confirm-button-text="删除"
-        cancel-button-text="取消"
-        @confirm="emit('delete')"
-      >
-        <template #reference>
-          <button class="tool-btn tool-btn-danger" title="删除" aria-label="删除该图片">
-            <el-icon><Delete /></el-icon>
-          </button>
-        </template>
-      </el-popconfirm>
-      <button v-else class="tool-btn tool-btn-danger" title="删除" aria-label="删除该图片" @click="emit('delete')">
-        <el-icon><Delete /></el-icon>
-      </button>
+      <template v-if="deletable">
+        <el-popconfirm
+          v-if="confirmDelete"
+          :title="confirmDeleteTitle"
+          confirm-button-text="删除"
+          cancel-button-text="取消"
+          @confirm="emit('delete')"
+        >
+          <template #reference>
+            <button class="tool-btn tool-btn-danger" title="删除" aria-label="删除该图片">
+              <el-icon><Delete /></el-icon>
+            </button>
+          </template>
+        </el-popconfirm>
+        <button v-else class="tool-btn tool-btn-danger" title="删除" aria-label="删除该图片" @click="emit('delete')">
+          <el-icon><Delete /></el-icon>
+        </button>
+      </template>
     </div>
   </div>
 </template>
@@ -97,6 +99,8 @@ const props = defineProps({
   confirmDeleteTitle: { type: String, default: '确认删除该图片？' },
   // 是否启用"编辑"模式（仅历史图库需要；其他场景保持"重新生成"按钮）
   editable: { type: Boolean, default: false },
+  // 是否显示删除按钮（当前任务区域不需要删除，历史图库需要）
+  deletable: { type: Boolean, default: true },
 })
 
 // "16:9" → "16/9"，CSS aspect-ratio 语法

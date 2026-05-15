@@ -21,10 +21,9 @@
           :status="entry.status"
           :image-type="entry.imageType"
           :ratio="batch.ratio"
-          :confirm-delete="false"
+          :deletable="false"
           :editable="entry.status === 'succeeded' && !!entry.assetNo"
           @edit="(p) => emit('edit', batch, { url: entry.url, asset_no: entry.assetNo, image_type: entry.imageType }, p)"
-          @delete="deleteItem(batch, entry.payload)"
         />
       </transition-group>
     </div>
