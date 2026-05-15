@@ -397,7 +397,7 @@ func (h *ConfigHandler) Get(c *gin.Context) {
 	var config model.Config
 	res := h.DB.Where("name", name).First(&config)
 	if res.Error != nil {
-		resp.ERROR(c, res.Error.Error())
+		resp.SUCCESS(c, map[string]any{})
 		return
 	}
 
