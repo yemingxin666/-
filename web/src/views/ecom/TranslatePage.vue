@@ -26,7 +26,7 @@
       </el-form>
     </div>
     <div class="panel-footer">
-      <EcomCreditBadge :estimated-cost="8" class="footer-credit" />
+      <EcomCreditBadge :estimated-cost="estimatedCost" class="footer-credit" />
       <el-tooltip
         :content="!assetNos.length ? '请先上传参考图片' : ''"
         :disabled="assetNos.length > 0"
@@ -82,7 +82,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useEcomConfigStore, useEcomTaskStore } from '@/store/ecom'
 import EcomImageUploader from '@/components/ecom/EcomImageUploader.vue'
@@ -95,9 +95,13 @@ const taskStore = useEcomTaskStore()
 const assetNos = ref([])
 const targetLang = ref('en')
 
+// 图文翻译单价从后端动态获取，获取不到默认 4 算力
+const translateUnitPrice = computed(() => configStore.getModelUnitPrice(configStore.selectedModel, 'translate') || 4)
+const estimatedCost = computed(() => (assetNos.value.length || 1) * translateUnitPrice.value)
+
 const submit = async () => {
   if (!assetNos.value.length) { ElMessage.warning('请先上传图片'); return }
-  if (configStore.userPower < 8) { ElMessage.error('算力不足，请充值'); return }
+  if (configStore.userPower < estimatedCost.value) { ElMessage.error('算力不足，请充值'); return }
   try {
     await taskStore.submitTask('/api/ai-commerce/image-text-translations', {
       module: 'translate', language: targetLang.value, reference_assets: assetNos.value, model: configStore.selectedModel,

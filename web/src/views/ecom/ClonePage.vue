@@ -98,9 +98,9 @@
 
         <el-form-item>
           <template #label>
-            <span class="field-label">产品图 <em>(最多3张产品白底图)</em></span>
+            <span class="field-label">产品图 <em>(1张产品白底图)</em></span>
           </template>
-          <EcomImageUploader v-model:assetNos="form.reference_assets" :multiple="true" :limit="3" />
+          <EcomImageUploader v-model:assetNos="form.reference_assets" :multiple="false" :limit="1" />
         </el-form-item>
 
         <el-form-item>
@@ -223,9 +223,9 @@ const form = ref({
 
 const { recommendedRatio } = useEcomLinkage(form)
 
-// 克隆设计算力：每张风格参考图 12 算力，无风格图时显示最小单价（用户上传前的引导值）
-const CLONE_CREDIT_PER_IMAGE = 12
-const estimatedCost = computed(() => (form.value.clone_assets.length || 1) * CLONE_CREDIT_PER_IMAGE)
+// 克隆设计算力：从后端模型配置动态获取单价，获取不到默认 7 算力
+const cloneUnitPrice = computed(() => configStore.getModelUnitPrice(configStore.selectedModel, 'clone') || 7)
+const estimatedCost = computed(() => (form.value.clone_assets.length || 1) * cloneUnitPrice.value)
 
 const copywriting = ref(false)
 
@@ -261,7 +261,7 @@ const copywrite = async () => {
 const submit = async () => {
   if (!form.value.reference_assets.length) { ElMessage.warning('请先上传产品图'); return }
   if (!form.value.clone_assets.length) { ElMessage.warning('请先上传风格参考图'); return }
-  const totalCost = form.value.clone_assets.length * CLONE_CREDIT_PER_IMAGE
+  const totalCost = form.value.clone_assets.length * cloneUnitPrice.value
   if (configStore.userPower < totalCost) { ElMessage.error(`算力不足，本次需 ${totalCost} 算力，请充值`); return }
   try {
     await taskStore.submitTask('/api/ai-commerce/clone-designs', { ...form.value, module: 'clone', model: configStore.selectedModel })

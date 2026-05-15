@@ -107,9 +107,9 @@ const assetNos = ref([])
 const ratio = ref('1:1')
 const productName = ref('')
 
-// 白底图按张计费：单价 5 算力/张，与后端 rembg 定价保持一致
-const WHITE_BG_UNIT_PRICE = 5
-const estimatedCost = computed(() => assetNos.value.length * WHITE_BG_UNIT_PRICE)
+// 白底图按张计费：从后端模块固定定价获取，默认 4 算力
+const whiteBgUnitPrice = computed(() => configStore.getModelUnitPrice(configStore.selectedModel, 'white_bg') || 4)
+const estimatedCost = computed(() => (assetNos.value.length || 1) * whiteBgUnitPrice.value)
 
 // 只要 items/outputs 任一非空，或任务仍在进行，就需要渲染结果区
 const hasRenderable = computed(() =>

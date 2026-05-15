@@ -115,7 +115,7 @@ const store = useEcomConfigStore()
 
 const showModelDialog = ref(false)
 const modelsLoading = ref(false)
-const showModelSelector = computed(() => props.activeModule !== 'white_bg')
+const showModelSelector = computed(() => props.activeModule !== 'gallery')
 
 const currentModelLabel = computed(() => {
   if (modelsLoading.value) return '加载中...'
@@ -130,9 +130,10 @@ const selectModel = (name) => {
 
 watch(() => props.activeModule, (val) => {
   store.activeModule = val
+  // 当切换到有能力限制的模块时，若当前选中模型不支持该模块，自动回退到第一个可用模型
   const valid = store.filteredModels.find(m => m.name === store.selectedModel)
   if (!valid && store.filteredModels.length) {
-    store.setSelectedModel(store.filteredModels[0].name)
+    store.selectedModel = store.filteredModels[0].name
   }
 }, { immediate: true })
 

@@ -58,8 +58,8 @@ type CopywriteReq struct {
 
 const maxCopywriteImageCount = 3
 
-// CloneCreditPerImage 克隆设计：每张风格参考图扣费
-const CloneCreditPerImage = 12
+// CloneCreditPerImage 克隆设计：每张风格参考图扣费（后备默认值）
+const CloneCreditPerImage = 7
 
 // maxCloneAssetCount 克隆模块单次任务的风格参考图上限（与前端 limit 一致）
 // 防止 API 客户端绕过前端限制提交大批量请求导致预扣过多 + worker 串行执行过久
@@ -126,7 +126,7 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 		}
 		creditCost = unitPrice * n
 	case ModuleWhiteBg:
-		rembgPrice, perr := s.promptRepo.GetPriceByModel("rembg")
+		rembgPrice, perr := s.promptRepo.GetPriceByModelModule("rembg", ModuleWhiteBg)
 		if perr != nil || rembgPrice <= 0 {
 			rembgPrice = 4
 		}
@@ -146,6 +146,9 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 		if len(req.ReferenceAssets) == 0 {
 			return nil, fmt.Errorf("请上传至少 1 张产品参考图")
 		}
+		if len(req.ReferenceAssets) > 1 {
+			return nil, fmt.Errorf("克隆设计产品图最多 1 张，当前 %d 张", len(req.ReferenceAssets))
+		}
 		creditCost = unitPrice * n
 	case ModuleRatioConvert:
 		n := len(req.ReferenceAssets)
@@ -160,7 +163,7 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 		}
 		creditCost = rcUnit * n
 	case ModuleTranslate:
-		translatePrice, tperr := s.promptRepo.GetPriceByModel("aliyun_translate")
+		translatePrice, tperr := s.promptRepo.GetPriceByModelModule("aliyun_translate", ModuleTranslate)
 		if tperr != nil || translatePrice <= 0 {
 			translatePrice = 4
 		}

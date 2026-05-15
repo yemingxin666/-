@@ -97,13 +97,16 @@ const assetNos = ref([])
 const ratio = ref('1:1')
 const mode = ref('crop')
 
-const modeOptions = [
+const modeOptions = computed(() => [
   { value: 'crop',     icon: '✂️', name: '裁剪', desc: '保留图片中心区域', cost: 3 },
-  { value: 'outpaint', icon: '✨', name: '扩图', desc: 'AI 智能填充边缘',  cost: 10 },
-]
+  { value: 'outpaint', icon: '✨', name: '扩图', desc: 'AI 智能填充边缘',  cost: outpaintUnitPrice.value },
+])
+
+// AI 扩图单价从后端动态获取，获取不到默认 6 算力；裁剪固定 3 算力
+const outpaintUnitPrice = computed(() => configStore.getModelUnitPrice(configStore.selectedModel, 'ratio_convert') || 6)
 
 const estimatedCost = computed(() => {
-  const unitCost = mode.value === 'outpaint' ? 10 : 3
+  const unitCost = mode.value === 'outpaint' ? outpaintUnitPrice.value : 3
   const count = Math.max(1, assetNos.value.length)
   return unitCost * count
 })

@@ -423,7 +423,27 @@ func (h *ImageHandler) ListModels(c *gin.Context) {
 			Prices:         prices,
 		})
 	}
-	resp.SUCCESS(c, result)
+
+	// 构建模块固定单价（来自非用户可选模型的定价，如 rembg、aliyun_translate）
+	// 前端用于白底图、图文翻译等模块的预估显示
+	modelNames := make(map[string]bool, len(models))
+	for _, m := range models {
+		modelNames[m.Name] = true
+	}
+	modulePricesMap := make(map[string]int)
+	for _, pc := range priceConfigs {
+		if modelNames[pc.Model] {
+			continue // 跳过用户可选模型的定价，已在 models 列表中返回
+		}
+		if pc.Module != "" && pc.Module != "all" {
+			// 同一模块可能有多条配置（不同模型），取第一条即可
+			if _, exists := modulePricesMap[pc.Module]; !exists {
+				modulePricesMap[pc.Module] = pc.CreditPerImage
+			}
+		}
+	}
+
+	resp.SUCCESS(c, gin.H{"models": result, "module_prices": modulePricesMap})
 }
 
 // ListPlatformConfigs 返回启用的平台配置列表（供用户端动态加载）

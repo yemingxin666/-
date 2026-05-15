@@ -66,6 +66,7 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
   ]
 
   const aiModels = ref([])
+  const modulePrices = ref({})
   const platformConfigs = ref(new Map())
   const STORAGE_KEY = 'ecom_selected_model'
   const activeModule = ref('main_image')
@@ -82,7 +83,7 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
 
   const setSelectedModel = (name) => {
     selectedModel.value = name
-    localStorage.setItem('ecom_model_' + activeModule.value, name)
+    localStorage.setItem(STORAGE_KEY, name)
   }
 
   const loadUserPower = async () => {
@@ -112,10 +113,10 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
     loadPlatformConfigs() // 并行加载
     try {
       const res = await httpGet('/api/ai-commerce/models')
-      aiModels.value = res.data || []
+      aiModels.value = res.data?.models || res.data || []
+      modulePrices.value = res.data?.module_prices || {}
       // 若本地存储的模型已不在启用列表中，则重置为第一个
-      const saved = localStorage.getItem('ecom_model_' + activeModule.value)
-        || localStorage.getItem(STORAGE_KEY)
+      const saved = localStorage.getItem(STORAGE_KEY)
       const valid = filteredModels.value.find((m) => m.name === saved)
       if (valid) {
         selectedModel.value = saved
@@ -132,12 +133,18 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
   }
 
   const getModelUnitPrice = (modelName, module) => {
+    // 优先从用户选中模型的 prices 中查找模块专属价格
     const m = aiModels.value.find((x) => x.name === (modelName || selectedModel.value))
-    if (!m) return 10
-    if (module && m.prices && m.prices[module] > 0) {
+    if (m && module && m.prices && m.prices[module] > 0) {
       return m.prices[module]
     }
-    return m.credit_per_image || 10
+    // 其次从模块固定定价中查找（如 rembg→white_bg, aliyun_translate→translate）
+    if (module && modulePrices.value[module] > 0) {
+      return modulePrices.value[module]
+    }
+    // 模型通用单价
+    if (m) return m.credit_per_image || 0
+    return 0
   }
 
 
@@ -155,7 +162,7 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
     }
   }
 
-  return { userPower, platforms, ratios, mainImageTypes, detailPageTypes, aiModels, platformConfigs, activeModule, filteredModels, selectedModel, setSelectedModel, loadUserPower, loadPlatformConfigs, getPlatformConfig, loadModels, deductPower, getModelUnitPrice, generateCopywriting }
+  return { userPower, platforms, ratios, mainImageTypes, detailPageTypes, aiModels, modulePrices, platformConfigs, activeModule, filteredModels, selectedModel, setSelectedModel, loadUserPower, loadPlatformConfigs, getPlatformConfig, loadModels, deductPower, getModelUnitPrice, generateCopywriting }
 })
 
 export const useEcomTaskStore = defineStore('ecomTask', () => {
