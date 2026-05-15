@@ -56,10 +56,13 @@ type AiModel struct {
 	ApiKey             string    `gorm:"column:api_key;type:varchar(512)" json:"api_key"`
 	BackupApiEndpoint1 string    `gorm:"column:backup_api_endpoint_1;type:varchar(512)" json:"backup_api_endpoint_1"`
 	BackupApiKey1      string    `gorm:"column:backup_api_key_1;type:varchar(512)" json:"backup_api_key_1"`
+	BackupModelName1   string    `gorm:"column:backup_model_name_1;type:varchar(64)" json:"backup_model_name_1"`
 	BackupApiEndpoint2 string    `gorm:"column:backup_api_endpoint_2;type:varchar(512)" json:"backup_api_endpoint_2"`
 	BackupApiKey2      string    `gorm:"column:backup_api_key_2;type:varchar(512)" json:"backup_api_key_2"`
+	BackupModelName2   string    `gorm:"column:backup_model_name_2;type:varchar(64)" json:"backup_model_name_2"`
 	BackupApiEndpoint3 string    `gorm:"column:backup_api_endpoint_3;type:varchar(512)" json:"backup_api_endpoint_3"`
 	BackupApiKey3      string    `gorm:"column:backup_api_key_3;type:varchar(512)" json:"backup_api_key_3"`
+	BackupModelName3   string    `gorm:"column:backup_model_name_3;type:varchar(64)" json:"backup_model_name_3"`
 	Capabilities       string    `gorm:"column:capabilities;type:varchar(128);not null;default:''" json:"capabilities"`
 	Description        string    `gorm:"column:description;type:varchar(512)" json:"description"`
 	SortOrder          int       `gorm:"column:sort_order;type:int;not null;default:0" json:"sort_order"`
@@ -76,19 +79,21 @@ type EndpointConfig struct {
 	Label       string
 	ApiEndpoint string
 	ApiKey      string
+	ModelName   string
 }
 
 func (m *AiModel) GetEndpoints() []EndpointConfig {
 	configs := []struct {
-		label    string
-		endpoint string
-		key      string
-		backup   bool
+		label     string
+		endpoint  string
+		key       string
+		modelName string
+		backup    bool
 	}{
-		{"primary", m.ApiEndpoint, m.ApiKey, false},
-		{"backup-1", m.BackupApiEndpoint1, m.BackupApiKey1, true},
-		{"backup-2", m.BackupApiEndpoint2, m.BackupApiKey2, true},
-		{"backup-3", m.BackupApiEndpoint3, m.BackupApiKey3, true},
+		{"primary", m.ApiEndpoint, m.ApiKey, "", false},
+		{"backup-1", m.BackupApiEndpoint1, m.BackupApiKey1, m.BackupModelName1, true},
+		{"backup-2", m.BackupApiEndpoint2, m.BackupApiKey2, m.BackupModelName2, true},
+		{"backup-3", m.BackupApiEndpoint3, m.BackupApiKey3, m.BackupModelName3, true},
 	}
 	endpoints := make([]EndpointConfig, 0, len(configs))
 	for _, c := range configs {
@@ -97,7 +102,9 @@ func (m *AiModel) GetEndpoints() []EndpointConfig {
 		if key == "" || (c.backup && ep == "") {
 			continue
 		}
-		endpoints = append(endpoints, EndpointConfig{Label: c.label, ApiEndpoint: ep, ApiKey: key})
+		endpoints = append(endpoints, EndpointConfig{
+			Label: c.label, ApiEndpoint: ep, ApiKey: key, ModelName: strings.TrimSpace(c.modelName),
+		})
 	}
 	return endpoints
 }

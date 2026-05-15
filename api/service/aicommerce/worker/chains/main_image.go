@@ -427,7 +427,11 @@ func buildVisionClients(db *gorm.DB) ([]*provider.OpenAIVisionCopywriter, error)
 		if strings.TrimSpace(ep.ApiEndpoint) == "" {
 			continue
 		}
-		clients = append(clients, provider.NewOpenAIVisionCopywriter(ep.ApiEndpoint, ep.ApiKey, m.Name))
+		modelName := ep.ModelName
+		if modelName == "" {
+			modelName = m.Name
+		}
+		clients = append(clients, provider.NewOpenAIVisionCopywriter(ep.ApiEndpoint, ep.ApiKey, modelName))
 	}
 	if len(clients) == 0 {
 		return nil, fmt.Errorf("视觉模型 %s api_endpoint 未配置", m.Name)

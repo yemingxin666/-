@@ -88,6 +88,9 @@
               <el-form-item :label="`备用 ${n} 密钥`">
                 <el-input v-model="item['backup_api_key_' + n]" type="password" show-password placeholder="留空则不启用" />
               </el-form-item>
+              <el-form-item :label="`备用 ${n} 模型`">
+                <el-input v-model="item['backup_model_name_' + n]" placeholder="留空则使用主模型标识" />
+              </el-form-item>
             </template>
           </el-collapse-item>
         </el-collapse>
@@ -148,9 +151,9 @@ const fetchData = () => {
 const add = () => {
   item.value = {
     model_type: 'image', provider: 'custom', capabilities_array: [], sort_order: 0, status: 'active',
-    backup_api_endpoint_1: '', backup_api_key_1: '',
-    backup_api_endpoint_2: '', backup_api_key_2: '',
-    backup_api_endpoint_3: '', backup_api_key_3: ''
+    backup_api_endpoint_1: '', backup_api_key_1: '', backup_model_name_1: '',
+    backup_api_endpoint_2: '', backup_api_key_2: '', backup_model_name_2: '',
+    backup_api_endpoint_3: '', backup_api_key_3: '', backup_model_name_3: ''
   }
   dialogTitle.value = '新增 AI 模型'
   showDialog.value = true
@@ -158,9 +161,9 @@ const add = () => {
 
 const edit = (row) => {
   item.value = {
-    backup_api_endpoint_1: '', backup_api_key_1: '',
-    backup_api_endpoint_2: '', backup_api_key_2: '',
-    backup_api_endpoint_3: '', backup_api_key_3: '',
+    backup_api_endpoint_1: '', backup_api_key_1: '', backup_model_name_1: '',
+    backup_api_endpoint_2: '', backup_api_key_2: '', backup_model_name_2: '',
+    backup_api_endpoint_3: '', backup_api_key_3: '', backup_model_name_3: '',
     ...row
   }
   item.value.capabilities_array = (row.capabilities || '').split(',').filter(Boolean)

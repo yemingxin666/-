@@ -254,10 +254,14 @@ func (d *Dispatcher) resolveImageClient(ctx context.Context, task *model.AiImage
 }
 
 func newImageClientForEndpoint(aiModel model.AiModel, ep model.EndpointConfig) provider.ImageClient {
-	if strings.EqualFold(strings.TrimSpace(aiModel.Name), "qwen-image-edit") {
-		return provider.NewQwenEditClient(ep.ApiEndpoint, ep.ApiKey, aiModel.Name)
+	modelName := ep.ModelName
+	if modelName == "" {
+		modelName = aiModel.Name
 	}
-	return provider.NewOpenAIImageClient(ep.ApiEndpoint, ep.ApiKey, aiModel.Name)
+	if strings.EqualFold(strings.TrimSpace(modelName), "qwen-image-edit") {
+		return provider.NewQwenEditClient(ep.ApiEndpoint, ep.ApiKey, modelName)
+	}
+	return provider.NewOpenAIImageClient(ep.ApiEndpoint, ep.ApiKey, modelName)
 }
 
 func requiredImageCapability(module string) string {
