@@ -225,8 +225,9 @@ func (d *Dispatcher) resolveImageClient(ctx context.Context, task *model.AiImage
 		}
 		return nil, fmt.Errorf("load image model %q: %w", modelName, err)
 	}
-	if strings.TrimSpace(aiModel.ApiKey) == "" {
-		return nil, fmt.Errorf("image model %q has empty api key", aiModel.Name)
+	endpoints := aiModel.GetEndpoints()
+	if len(endpoints) == 0 {
+		return nil, fmt.Errorf("image model %q has no configured api endpoints", aiModel.Name)
 	}
 	requiredCap := requiredImageCapability(task.Module)
 	if requiredCap != "" && strings.TrimSpace(aiModel.Capabilities) != "" {
@@ -237,10 +238,26 @@ func (d *Dispatcher) resolveImageClient(ctx context.Context, task *model.AiImage
 
 	task.Model = aiModel.Name
 	task.Provider = aiModel.Provider
-	if strings.EqualFold(strings.TrimSpace(aiModel.Name), "qwen-image-edit") {
-		return provider.NewQwenEditClient(aiModel.ApiEndpoint, aiModel.ApiKey, aiModel.Name), nil
+
+	failoverEps := make([]provider.FailoverEndpoint, 0, len(endpoints))
+	for _, ep := range endpoints {
+		failoverEps = append(failoverEps, provider.FailoverEndpoint{
+			Label:       ep.Label,
+			ApiEndpoint: ep.ApiEndpoint,
+			Client:      newImageClientForEndpoint(aiModel, ep),
+		})
 	}
-	return provider.NewOpenAIImageClient(aiModel.ApiEndpoint, aiModel.ApiKey, aiModel.Name), nil
+	if len(failoverEps) == 1 {
+		return failoverEps[0].Client, nil
+	}
+	return provider.NewFailoverImageClient(aiModel.Name, failoverEps), nil
+}
+
+func newImageClientForEndpoint(aiModel model.AiModel, ep model.EndpointConfig) provider.ImageClient {
+	if strings.EqualFold(strings.TrimSpace(aiModel.Name), "qwen-image-edit") {
+		return provider.NewQwenEditClient(ep.ApiEndpoint, ep.ApiKey, aiModel.Name)
+	}
+	return provider.NewOpenAIImageClient(ep.ApiEndpoint, ep.ApiKey, aiModel.Name)
 }
 
 func requiredImageCapability(module string) string {

@@ -9,6 +9,7 @@ import (
 	"geekai/store/model"
 	"geekai/utils/resp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -263,6 +264,10 @@ func (h *AiCommerceHandler) SaveModel(c *gin.Context) {
 		resp.ERROR(c, "模型标识、显示名称和提供商不能为空")
 		return
 	}
+	if msg := validateBackupApiPairs(data); msg != "" {
+		resp.ERROR(c, msg)
+		return
+	}
 	if data.Status == "" {
 		data.Status = "active"
 	}
@@ -281,6 +286,26 @@ func (h *AiCommerceHandler) SaveModel(c *gin.Context) {
 		return
 	}
 	resp.SUCCESS(c, data)
+}
+
+func validateBackupApiPairs(data model.AiModel) string {
+	pairs := []struct {
+		idx int
+		ep  string
+		key string
+	}{
+		{1, data.BackupApiEndpoint1, data.BackupApiKey1},
+		{2, data.BackupApiEndpoint2, data.BackupApiKey2},
+		{3, data.BackupApiEndpoint3, data.BackupApiKey3},
+	}
+	for _, p := range pairs {
+		hasEp := strings.TrimSpace(p.ep) != ""
+		hasKey := strings.TrimSpace(p.key) != ""
+		if hasEp != hasKey {
+			return "备用 API " + strconv.Itoa(p.idx) + " 的地址和密钥必须同时填写或同时留空"
+		}
+	}
+	return ""
 }
 
 // RemoveModel 删除 AI 模型

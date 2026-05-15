@@ -46,7 +46,7 @@
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="showDialog" :title="dialogTitle" width="520px">
+    <el-dialog v-model="showDialog" :title="dialogTitle" width="640px">
       <el-form :model="item" label-width="100px" ref="formRef" :rules="rules">
         <el-form-item label="模型标识" prop="name">
           <el-input v-model="item.name" placeholder="如 NanoBanana、GPT-Image-2" :disabled="item.id > 0" />
@@ -70,12 +70,28 @@
             <el-option value="video" label="视频生成" />
           </el-select>
         </el-form-item>
+        <el-divider content-position="left">主 API 配置</el-divider>
         <el-form-item label="API 地址">
           <el-input v-model="item.api_endpoint" placeholder="可选，留空使用默认端点" />
         </el-form-item>
         <el-form-item label="API 密钥">
           <el-input v-model="item.api_key" type="password" show-password placeholder="可选" />
         </el-form-item>
+
+        <el-collapse class="backup-api-collapse">
+          <el-collapse-item title="备用 API 端点（可选，故障自动切换）" name="backup">
+            <template v-for="n in 3" :key="n">
+              <el-divider border-style="dashed" class="backup-divider">备用 {{ n }}</el-divider>
+              <el-form-item :label="`备用 ${n} 地址`">
+                <el-input v-model="item['backup_api_endpoint_' + n]" placeholder="留空则不启用" />
+              </el-form-item>
+              <el-form-item :label="`备用 ${n} 密钥`">
+                <el-input v-model="item['backup_api_key_' + n]" type="password" show-password placeholder="留空则不启用" />
+              </el-form-item>
+            </template>
+          </el-collapse-item>
+        </el-collapse>
+
         <el-form-item label="描述">
           <el-input v-model="item.description" type="textarea" :rows="2" placeholder="可选备注" />
         </el-form-item>
@@ -130,13 +146,23 @@ const fetchData = () => {
 }
 
 const add = () => {
-  item.value = { model_type: 'image', provider: 'custom', capabilities_array: [], sort_order: 0, status: 'active' }
+  item.value = {
+    model_type: 'image', provider: 'custom', capabilities_array: [], sort_order: 0, status: 'active',
+    backup_api_endpoint_1: '', backup_api_key_1: '',
+    backup_api_endpoint_2: '', backup_api_key_2: '',
+    backup_api_endpoint_3: '', backup_api_key_3: ''
+  }
   dialogTitle.value = '新增 AI 模型'
   showDialog.value = true
 }
 
 const edit = (row) => {
-  item.value = { ...row }
+  item.value = {
+    backup_api_endpoint_1: '', backup_api_key_1: '',
+    backup_api_endpoint_2: '', backup_api_key_2: '',
+    backup_api_endpoint_3: '', backup_api_key_3: '',
+    ...row
+  }
   item.value.capabilities_array = (row.capabilities || '').split(',').filter(Boolean)
   dialogTitle.value = '编辑 AI 模型'
   showDialog.value = true
@@ -171,4 +197,6 @@ onMounted(fetchData)
 <style scoped>
 .container { padding: 16px; }
 .handle-box { display: flex; align-items: center; }
+.backup-api-collapse { margin-bottom: 18px; }
+.backup-divider { margin: 12px 0; color: #909399; font-size: 12px; }
 </style>

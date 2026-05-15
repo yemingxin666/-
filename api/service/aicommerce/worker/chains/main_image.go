@@ -78,16 +78,28 @@ func RunMainImage(
 			return fmt.Errorf("参考图解析失败，请重新上传")
 		}
 
-		visionClient, visionErr := buildVisionClient(db)
+		visionClients, visionErr := buildVisionClients(db)
 		if visionErr == nil {
-			// Vision API 调用设置独立超时（30秒），避免卡住整个任务
-			visionCtx, visionCancel := context.WithTimeout(ctx, 30*time.Second)
-			defer visionCancel()
-
-			content, analysis, err := visionClient.GenerateCopywrite(visionCtx, productName, sellingPoints, imageURLs, task.ImageType)
-			if err != nil {
-				// Vision API 失败不阻断任务，记录日志后继续（这是可选增强功能）
-				logger2.GetLogger().Warnf("task %d vision copywrite failed (non-blocking): %v", task.Id, err)
+			var content string
+			var analysis *provider.CopywriteAnalysis
+			var lastVisionErr error
+			for i, vc := range visionClients {
+				visionCtx, visionCancel := context.WithTimeout(ctx, 30*time.Second)
+				content, analysis, lastVisionErr = vc.GenerateCopywrite(visionCtx, productName, sellingPoints, imageURLs, task.ImageType)
+				visionCancel()
+				if lastVisionErr == nil {
+					if i > 0 {
+						logger2.GetLogger().Infof("task %d vision copywrite failover succeeded on endpoint %d", task.Id, i+1)
+					}
+					break
+				}
+				if errors.Is(lastVisionErr, context.Canceled) {
+					break
+				}
+				logger2.GetLogger().Warnf("task %d vision copywrite endpoint %d failed: %v", task.Id, i+1, lastVisionErr)
+			}
+			if lastVisionErr != nil {
+				logger2.GetLogger().Warnf("task %d vision copywrite all endpoints failed (non-blocking): %v", task.Id, lastVisionErr)
 			} else {
 				if sellingPoints == "" {
 					vars.SellingPoints = content
@@ -100,7 +112,6 @@ func RunMainImage(
 				}
 			}
 		} else {
-			// Vision client 构建失败，记录日志后继续
 			logger2.GetLogger().Warnf("task %d build vision client failed (non-blocking): %v", task.Id, visionErr)
 		}
 	}
@@ -386,16 +397,14 @@ func resolveAssetURLs(db *gorm.DB, userID uint, assetNos []string, cfg aicommerc
 	return urls
 }
 
-// buildVisionClient 从 DB 读取 chat 模型配置构造视觉代写客户端
+// buildVisionClients 从 DB 读取 chat 模型配置构造视觉代写客户端列表（支持 failover）
 // 优先查找 gpt-4o，如果不存在则使用任意可用的 chat 模型（按 sort_order 排序）
-func buildVisionClient(db *gorm.DB) (*provider.OpenAIVisionCopywriter, error) {
+func buildVisionClients(db *gorm.DB) ([]*provider.OpenAIVisionCopywriter, error) {
 	var m model.AiModel
-	// 优先尝试 gpt-4o
 	err := db.Where("name = ? AND model_type = ? AND status = ?", "gpt-4o", "chat", "active").
 		First(&m).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// gpt-4o 不存在，查找任意可用的 chat 模型
 			err = db.Where("model_type = ? AND status = ?", "chat", "active").
 				Order("sort_order ASC, id ASC").
 				First(&m).Error
@@ -409,8 +418,19 @@ func buildVisionClient(db *gorm.DB) (*provider.OpenAIVisionCopywriter, error) {
 			return nil, err
 		}
 	}
-	if strings.TrimSpace(m.ApiKey) == "" || strings.TrimSpace(m.ApiEndpoint) == "" {
-		return nil, fmt.Errorf("视觉模型 %s api_key 或 api_endpoint 未配置", m.Name)
+	endpoints := m.GetEndpoints()
+	if len(endpoints) == 0 {
+		return nil, fmt.Errorf("视觉模型 %s 无可用的 API 端点配置", m.Name)
 	}
-	return provider.NewOpenAIVisionCopywriter(m.ApiEndpoint, m.ApiKey, m.Name), nil
+	clients := make([]*provider.OpenAIVisionCopywriter, 0, len(endpoints))
+	for _, ep := range endpoints {
+		if strings.TrimSpace(ep.ApiEndpoint) == "" {
+			continue
+		}
+		clients = append(clients, provider.NewOpenAIVisionCopywriter(ep.ApiEndpoint, ep.ApiKey, m.Name))
+	}
+	if len(clients) == 0 {
+		return nil, fmt.Errorf("视觉模型 %s api_endpoint 未配置", m.Name)
+	}
+	return clients, nil
 }
