@@ -105,6 +105,13 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 		}
 		// 写回规范化后的值，确保与 worker 查询一致
 		req.ImageType = strings.Join(validTypes, ",")
+
+		if len(req.ReferenceAssets) == 0 {
+			return nil, fmt.Errorf("请上传至少 1 张参考图")
+		}
+		if len(req.ReferenceAssets) > 3 {
+			return nil, fmt.Errorf("参考图最多 3 张，当前 %d 张", len(req.ReferenceAssets))
+		}
 	}
 
 	// 1. 确定模型和积分
@@ -134,6 +141,9 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 		if n == 0 {
 			return nil, fmt.Errorf("请上传至少 1 张参考图")
 		}
+		if n > 3 {
+			return nil, fmt.Errorf("白底图参考图最多 3 张，当前 %d 张", n)
+		}
 		creditCost = rembgPrice * n
 	case ModuleClone:
 		n := len(req.CloneAssets)
@@ -155,6 +165,9 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 		if n == 0 {
 			return nil, fmt.Errorf("请上传至少 1 张参考图")
 		}
+		if n > 3 {
+			return nil, fmt.Errorf("比例转换参考图最多 3 张，当前 %d 张", n)
+		}
 		var rcUnit int
 		if req.StyleDesc == "crop" {
 			rcUnit = 3
@@ -170,6 +183,9 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 		n := len(req.ReferenceAssets)
 		if n == 0 {
 			return nil, fmt.Errorf("请上传至少 1 张参考图")
+		}
+		if n > 3 {
+			return nil, fmt.Errorf("图文翻译参考图最多 3 张，当前 %d 张", n)
 		}
 		creditCost = translatePrice * n
 	}
