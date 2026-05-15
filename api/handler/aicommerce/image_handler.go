@@ -381,26 +381,20 @@ func (h *ImageHandler) ListModels(c *gin.Context) {
 		return
 	}
 	type publicModel struct {
-		Id           uint   `json:"id"`
 		Name         string `json:"name"`
 		DisplayName  string `json:"display_name"`
 		Provider     string `json:"provider"`
-		ModelType    string `json:"model_type"`
 		Description  string `json:"description"`
 		Capabilities string `json:"capabilities"`
-		SortOrder    int    `json:"sort_order"`
 	}
 	result := make([]publicModel, 0, len(models))
 	for _, m := range models {
 		result = append(result, publicModel{
-			Id:           m.Id,
 			Name:         m.Name,
 			DisplayName:  m.DisplayName,
 			Provider:     m.Provider,
-			ModelType:    m.ModelType,
 			Description:  m.Description,
 			Capabilities: m.Capabilities,
-			SortOrder:    m.SortOrder,
 		})
 	}
 	resp.SUCCESS(c, result)
