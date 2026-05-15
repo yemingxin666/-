@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { httpGet, httpPost, httpDelete } from '@/utils/http'
 import { checkSession } from '@/store/cache'
+import { showMessageOK } from '@/utils/dialog'
 
 const MODULE_CAPS = {
   clone: 'img2img',
@@ -130,6 +131,15 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
     userPower.value = Math.max(0, userPower.value - amount)
   }
 
+  const getModelUnitPrice = (modelName, module) => {
+    const m = aiModels.value.find((x) => x.name === (modelName || selectedModel.value))
+    if (!m) return 10
+    if (module && m.prices && m.prices[module] > 0) {
+      return m.prices[module]
+    }
+    return m.credit_per_image || 10
+  }
+
 
   const generateCopywriting = async (productName, hint, assetNos, imageType) => {
     const res = await httpPost('/api/ai-commerce/copywrite', {
@@ -145,7 +155,7 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
     }
   }
 
-  return { userPower, platforms, ratios, mainImageTypes, detailPageTypes, aiModels, platformConfigs, activeModule, filteredModels, selectedModel, setSelectedModel, loadUserPower, loadPlatformConfigs, getPlatformConfig, loadModels, deductPower, generateCopywriting }
+  return { userPower, platforms, ratios, mainImageTypes, detailPageTypes, aiModels, platformConfigs, activeModule, filteredModels, selectedModel, setSelectedModel, loadUserPower, loadPlatformConfigs, getPlatformConfig, loadModels, deductPower, getModelUnitPrice, generateCopywriting }
 })
 
 export const useEcomTaskStore = defineStore('ecomTask', () => {
@@ -287,11 +297,21 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
         const res = await httpGet(`/api/ai-commerce/tasks/${taskNo}`)
         if (currentTask.value?.task_no !== taskNo) return // stale response guard
         if (res.code === 0) {
+          const originalCost = currentTask.value?.credit_cost || 0
           Object.assign(currentTask.value, res.data)
-          // 合并而非整体替换 items：以 image_type 为键，保护已 succeeded 项不被回退
-          // 同时保留对象引用稳定性，避免每次轮询都让 ResultCard 闪烁
           items.value = mergeItems(items.value, res.data.items || [])
           outputs.value = res.data.outputs || []
+          if (res.data.status === 'succeeded' || res.data.status === 'failed') {
+            const actualCost = res.data.credit_cost ?? originalCost
+            if (actualCost < originalCost) {
+              const refunded = originalCost - actualCost
+              const msg = actualCost === 0
+                ? `任务失败，已全额退还 ${refunded} 算力`
+                : `部分图片生成失败，已退还 ${refunded} 算力`
+              showMessageOK(msg)
+              useEcomConfigStore().loadUserPower()
+            }
+          }
           if (res.data.status === 'succeeded') {
             archiveCurrent()
             currentTask.value = null

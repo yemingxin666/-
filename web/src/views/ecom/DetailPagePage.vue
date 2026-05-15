@@ -262,7 +262,7 @@ const sortedTypes = computed(() => {
   return [...configStore.detailPageTypes].sort((a, b) => getScore(b.value) - getScore(a.value))
 })
 
-const estimatedCost = computed(() => selectedTypes.value.length * 10)
+const estimatedCost = computed(() => selectedTypes.value.length * configStore.getModelUnitPrice(null, 'detail_page'))
 
 const copywrite = async () => {
   if (!form.value.reference_assets.length) { ElMessage.warning('请先上传参考图'); return }

@@ -112,19 +112,23 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 	if modelName == "" {
 		modelName = s.cfg.SiliconFlowModel
 	}
-	unitPrice, err := s.promptRepo.GetPriceByModel(modelName)
+	unitPrice, err := s.promptRepo.GetPriceByModelModule(modelName, req.Module)
 	if err != nil {
 		return nil, err
 	}
-	// 白底图按 rembg 单价 × 参考图张数；克隆按 12 × 风格参考图张数；
-	// 比例转换按模式单价 × 参考图张数；其他按单张计费
-	// 依赖 deductCredit 的原子扣减（WHERE power >= cost）天然防 TOCTOU，无需预读余额
+	// 按模块计费：单价 × 张数，依赖 deductCredit 的原子扣减（WHERE power >= cost）天然防 TOCTOU
 	creditCost := unitPrice
 	switch req.Module {
+	case ModuleMainImage, ModuleDetailPage:
+		n := len(strings.Split(req.ImageType, ","))
+		if n == 0 {
+			n = 1
+		}
+		creditCost = unitPrice * n
 	case ModuleWhiteBg:
 		rembgPrice, perr := s.promptRepo.GetPriceByModel("rembg")
 		if perr != nil || rembgPrice <= 0 {
-			rembgPrice = 5 // 兜底：与 migration 初始值一致
+			rembgPrice = 4
 		}
 		n := len(req.ReferenceAssets)
 		if n == 0 {
@@ -142,18 +146,29 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 		if len(req.ReferenceAssets) == 0 {
 			return nil, fmt.Errorf("请上传至少 1 张产品参考图")
 		}
-		creditCost = CloneCreditPerImage * n
+		creditCost = unitPrice * n
 	case ModuleRatioConvert:
 		n := len(req.ReferenceAssets)
 		if n == 0 {
 			return nil, fmt.Errorf("请上传至少 1 张参考图")
 		}
-		// 根据转换模式确定单价：crop=3, outpaint=10
-		rcUnit := 10
+		var rcUnit int
 		if req.StyleDesc == "crop" {
 			rcUnit = 3
+		} else {
+			rcUnit = unitPrice
 		}
 		creditCost = rcUnit * n
+	case ModuleTranslate:
+		translatePrice, tperr := s.promptRepo.GetPriceByModel("aliyun_translate")
+		if tperr != nil || translatePrice <= 0 {
+			translatePrice = 4
+		}
+		n := len(req.ReferenceAssets)
+		if n == 0 {
+			return nil, fmt.Errorf("请上传至少 1 张参考图")
+		}
+		creditCost = translatePrice * n
 	}
 
 	// 2. 扣减算力（调用 GeeKAI 现有机制）
@@ -165,6 +180,43 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 	inputBytes, _ := json.Marshal(req)
 	var inputJSON model.JSONMap
 	_ = json.Unmarshal(inputBytes, &inputJSON)
+
+	switch req.Module {
+	case ModuleMainImage, ModuleDetailPage:
+		inputJSON["_billing"] = map[string]interface{}{
+			"unit_price": unitPrice,
+			"quantity":   len(strings.Split(req.ImageType, ",")),
+			"total":      creditCost,
+		}
+	case ModuleWhiteBg:
+		inputJSON["_billing"] = map[string]interface{}{
+			"unit_price": creditCost / len(req.ReferenceAssets),
+			"quantity":   len(req.ReferenceAssets),
+			"total":      creditCost,
+		}
+	case ModuleClone:
+		inputJSON["_billing"] = map[string]interface{}{
+			"unit_price": unitPrice,
+			"quantity":   len(req.CloneAssets),
+			"total":      creditCost,
+		}
+	case ModuleRatioConvert:
+		rcBillingUnit := 3
+		if req.StyleDesc != "crop" {
+			rcBillingUnit = unitPrice
+		}
+		inputJSON["_billing"] = map[string]interface{}{
+			"unit_price": rcBillingUnit,
+			"quantity":   len(req.ReferenceAssets),
+			"total":      creditCost,
+		}
+	case ModuleTranslate:
+		inputJSON["_billing"] = map[string]interface{}{
+			"unit_price": creditCost / len(req.ReferenceAssets),
+			"quantity":   len(req.ReferenceAssets),
+			"total":      creditCost,
+		}
+	}
 
 	// 4. 创建任务记录
 	taskNo := generateTaskNo()
@@ -244,7 +296,7 @@ func (s *ImageService) SubmitEditTask(ctx context.Context, userID uint, req Edit
 	}
 
 	// 4. 计费
-	creditCost, err := s.promptRepo.GetPriceByModel(modelName)
+	creditCost, err := s.promptRepo.GetPriceByModelModule(modelName, ModuleEdit)
 	if err != nil {
 		return nil, fmt.Errorf("模型不可用: %w", err)
 	}

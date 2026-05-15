@@ -34,8 +34,8 @@ const (
 
 type AiModelPriceConfig struct {
 	Id             uint   `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
-	Model          string `gorm:"column:model;type:varchar(64);uniqueIndex;not null" json:"model"`
-	Module         string `gorm:"column:module;type:varchar(32);not null;default:all" json:"module"`
+	Model          string `gorm:"column:model;type:varchar(64);not null;uniqueIndex:uk_model_module" json:"model"`
+	Module         string `gorm:"column:module;type:varchar(32);not null;default:all;uniqueIndex:uk_model_module" json:"module"`
 	CreditPerImage int    `gorm:"column:credit_per_image;type:int;not null" json:"credit_per_image"`
 	Description    string `gorm:"column:description;type:varchar(255)" json:"description"`
 	Status         string `gorm:"column:status;type:varchar(16);not null;default:active" json:"status"`

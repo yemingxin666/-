@@ -22,7 +22,7 @@
       <div class="gallery-grid" v-else>
         <div v-for="task in galleryStore.items" :key="task.task_no" class="gallery-item">
           <div class="task-meta">
-            <el-tag size="small" type="primary" effect="light">{{ moduleLabel(task.module) }}</el-tag>
+            <el-tag size="small" type="primary" effect="light">{{ taskTitle(task) }}</el-tag>
             <el-tag v-if="isRunning(task)" size="small" type="warning" effect="light">
               {{ task.status === 'running' ? '生成中' : '排队中' }}
             </el-tag>
@@ -132,6 +132,11 @@ const onEditSubmitted = async () => {
 
 const moduleMap = { main_image: '主图设计', detail_page: '详情页', white_bg: '白底图', clone: '克隆设计', ratio_convert: '比例转换', translate: '图文翻译', edit: '图片编辑' }
 const moduleLabel = (m) => moduleMap[m] || m
+const taskTitle = (task) => {
+  const label = moduleLabel(task.module)
+  const name = task.input_json?.product_name
+  return name ? `${name} · ${label}` : label
+}
 const formatDate = (t) => t ? new Date(t).toLocaleDateString('zh-CN') : ''
 const isRunning = (t) => ['queued', 'running', 'pending'].includes(t.status)
 const ratioToCss = (r) => (r || '1:1').replace(':', '/')

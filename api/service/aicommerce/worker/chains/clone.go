@@ -104,14 +104,17 @@ func RunClone(
 		return fmt.Errorf("clone: no image generated successfully")
 	}
 
-	// 部分成功：内部退款，避免 dispatcher 走全退路径
 	if succeeded < total {
-		if err := refundFailedCloneCredits(db, task, total, succeeded, aicommerce.CloneCreditPerImage); err != nil {
-			// 退款失败不向上抛，防止整任务被标记 failed 触发双重退款
-			// 但必须告警让运维介入手动补偿，避免用户被多扣算力
-			cloneLogger.Errorf("[clone] task=%d user=%d partial refund failed: total=%d succeeded=%d unit=%d err=%v",
-				task.Id, task.UserId, total, succeeded, aicommerce.CloneCreditPerImage, err)
-			_ = db.Model(task).Update("error_message", fmt.Sprintf("clone partial refund failed: %v", err)).Error
+		unitPrice, quantity := extractBillingSnapshot(task)
+		if unitPrice > 0 && quantity == total && unitPrice*quantity == task.CreditCost {
+			if err := refundFailedCloneCredits(db, task, total, succeeded, unitPrice); err != nil {
+				cloneLogger.Errorf("[clone] task=%d user=%d partial refund failed: total=%d succeeded=%d unit=%d err=%v",
+					task.Id, task.UserId, total, succeeded, unitPrice, err)
+				_ = db.Model(task).Update("error_message", fmt.Sprintf("clone partial refund failed: %v", err)).Error
+			}
+		} else {
+			cloneLogger.Warnf("[clone] task=%d billing snapshot mismatch: unit=%d qty=%d total=%d credit_cost=%d, skip partial refund",
+				task.Id, unitPrice, quantity, total, task.CreditCost)
 		}
 	}
 

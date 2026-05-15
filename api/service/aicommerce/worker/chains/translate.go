@@ -3,6 +3,7 @@ package chains
 import (
 	"context"
 	"fmt"
+	logger2 "geekai/logger"
 	"geekai/service/aicommerce"
 	"geekai/service/aicommerce/provider"
 	"geekai/service/oss"
@@ -77,6 +78,20 @@ func RunTranslate(
 		return fmt.Errorf("translate: no image translated successfully")
 	}
 
+	if succeeded < total {
+		unitPrice, quantity := extractBillingSnapshot(task)
+		if unitPrice > 0 && quantity == total && unitPrice*quantity == task.CreditCost {
+			if err := refundPartialTranslate(db, task, total, succeeded, unitPrice); err != nil {
+				logger2.GetLogger().Errorf("[translate] task=%d partial refund failed: %v", task.Id, err)
+				_ = db.Model(task).Update("error_message",
+					fmt.Sprintf("translate partial refund failed: %v", err)).Error
+			}
+		} else {
+			logger2.GetLogger().Warnf(
+				"[translate] task=%d billing snapshot mismatch: unit=%d qty=%d total=%d credit_cost=%d, skip partial refund",
+				task.Id, unitPrice, quantity, total, task.CreditCost)
+		}
+	}
 	return nil
 }
 
@@ -127,4 +142,36 @@ func processOneTranslate(
 
 func translateImageType(index int) string {
 	return fmt.Sprintf("translate_%d", index)
+}
+
+func refundPartialTranslate(db *gorm.DB, task *model.AiImageTask, total, succeeded, unitCost int) error {
+	if task == nil || task.Id == 0 || total <= 0 || succeeded <= 0 || succeeded >= total || unitCost <= 0 {
+		return nil
+	}
+	failed := total - succeeded
+	refund := failed * unitCost
+	finalCost := succeeded * unitCost
+	expectedCost := total * unitCost
+	return db.Transaction(func(tx *gorm.DB) error {
+		taskResult := tx.Model(&model.AiImageTask{}).
+			Where("id = ? AND credit_cost = ?", task.Id, expectedCost).
+			Update("credit_cost", finalCost)
+		if taskResult.Error != nil {
+			return fmt.Errorf("update translate credit_cost: %w", taskResult.Error)
+		}
+		if taskResult.RowsAffected == 0 {
+			return fmt.Errorf("credit_cost already changed (expected %d), skip refund", expectedCost)
+		}
+		userResult := tx.Model(&model.User{}).
+			Where("id = ?", task.UserId).
+			UpdateColumn("power", gorm.Expr("power + ?", refund))
+		if userResult.Error != nil {
+			return fmt.Errorf("refund translate credits: %w", userResult.Error)
+		}
+		if userResult.RowsAffected == 0 {
+			return fmt.Errorf("user %d not found, cannot refund", task.UserId)
+		}
+		task.CreditCost = finalCost
+		return nil
+	})
 }

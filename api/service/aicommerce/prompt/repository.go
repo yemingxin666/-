@@ -28,12 +28,39 @@ func (r *Repository) FindTemplate(module, imageType string) (*model.AiPromptTemp
 	return nil, gorm.ErrRecordNotFound
 }
 
-// GetPriceByModel 查询模型单价
+// GetPriceByModel 查询模型单价（不区分模块，向后兼容）
 func (r *Repository) GetPriceByModel(modelName string) (int, error) {
-	var cfg model.AiModelPriceConfig
-	err := r.db.Where("model = ? AND status = ?", modelName, "active").First(&cfg).Error
-	if err != nil {
-		return 10, nil // 查不到时默认 10 算力
+	return r.GetPriceByModelModule(modelName, "")
+}
+
+// moduleDefaultPrice 模块级兜底单价
+var moduleDefaultPrice = map[string]int{
+	"main_image":    6,
+	"detail_page":   6,
+	"clone":         7,
+	"white_bg":      4,
+	"translate":     4,
+	"ratio_convert": 6,
+	"edit":          6,
+}
+
+// GetPriceByModelModule 查询模型+模块单价。
+// 优先精确匹配 (model, module)，未命中则 fallback 到 (model, "all")，再未命中返回模块默认值。
+func (r *Repository) GetPriceByModelModule(modelName, module string) (int, error) {
+	if module != "" && module != "all" {
+		var cfg model.AiModelPriceConfig
+		err := r.db.Where("model = ? AND module = ? AND status = ?", modelName, module, "active").First(&cfg).Error
+		if err == nil {
+			return cfg.CreditPerImage, nil
+		}
 	}
-	return cfg.CreditPerImage, nil
+	var cfg model.AiModelPriceConfig
+	err := r.db.Where("model = ? AND module = ? AND status = ?", modelName, "all", "active").First(&cfg).Error
+	if err == nil {
+		return cfg.CreditPerImage, nil
+	}
+	if d, ok := moduleDefaultPrice[module]; ok {
+		return d, nil
+	}
+	return 10, nil
 }

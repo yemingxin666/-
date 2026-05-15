@@ -192,13 +192,14 @@ func (h *ImageHandler) GetTask(c *gin.Context) {
 	}
 
 	resp.SUCCESS(c, gin.H{
-		"task_no":  result.Task.TaskNo,
-		"module":   result.Task.Module,
-		"status":   result.Task.Status,
-		"progress": result.Progress,
-		"outputs":  result.Outputs,
-		"items":    result.Items,
-		"error":    result.Task.ErrorMessage,
+		"task_no":     result.Task.TaskNo,
+		"module":      result.Task.Module,
+		"status":      result.Task.Status,
+		"progress":    result.Progress,
+		"outputs":     result.Outputs,
+		"items":       result.Items,
+		"error":       result.Task.ErrorMessage,
+		"credit_cost": result.Task.CreditCost,
 	})
 }
 
@@ -380,21 +381,46 @@ func (h *ImageHandler) ListModels(c *gin.Context) {
 		resp.ERROR(c, err.Error())
 		return
 	}
+	var priceConfigs []model.AiModelPriceConfig
+	h.db.Where("status = ?", "active").Find(&priceConfigs)
+	// priceMap: model → module → price；module="all" 作为默认值
+	type modulePrices map[string]int
+	priceMap := make(map[string]modulePrices, len(priceConfigs))
+	for _, pc := range priceConfigs {
+		if priceMap[pc.Model] == nil {
+			priceMap[pc.Model] = make(modulePrices)
+		}
+		priceMap[pc.Model][pc.Module] = pc.CreditPerImage
+	}
+
 	type publicModel struct {
-		Name         string `json:"name"`
-		DisplayName  string `json:"display_name"`
-		Provider     string `json:"provider"`
-		Description  string `json:"description"`
-		Capabilities string `json:"capabilities"`
+		Name           string         `json:"name"`
+		DisplayName    string         `json:"display_name"`
+		Provider       string         `json:"provider"`
+		Description    string         `json:"description"`
+		Capabilities   string         `json:"capabilities"`
+		CreditPerImage int            `json:"credit_per_image"`
+		Prices         map[string]int `json:"prices,omitempty"`
 	}
 	result := make([]publicModel, 0, len(models))
 	for _, m := range models {
+		mp := priceMap[m.Name]
+		defaultPrice := mp["all"]
+		if defaultPrice <= 0 {
+			defaultPrice = 10
+		}
+		prices := make(map[string]int, len(mp))
+		for mod, p := range mp {
+			prices[mod] = p
+		}
 		result = append(result, publicModel{
-			Name:         m.Name,
-			DisplayName:  m.DisplayName,
-			Provider:     m.Provider,
-			Description:  m.Description,
-			Capabilities: m.Capabilities,
+			Name:           m.Name,
+			DisplayName:    m.DisplayName,
+			Provider:       m.Provider,
+			Description:    m.Description,
+			Capabilities:   m.Capabilities,
+			CreditPerImage: defaultPrice,
+			Prices:         prices,
 		})
 	}
 	resp.SUCCESS(c, result)

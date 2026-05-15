@@ -240,10 +240,25 @@ func RunMainImage(
 		}
 	}
 
-	// 部分成功：有至少一张生成成功，任务视为成功（失败类型已记录在 asset error 中）
-	// 全部失败：返回第一个错误，dispatcher 会将任务标记为 failed
 	if succeededCount == 0 && firstErr != nil {
 		return firstErr
+	}
+
+	if succeededCount > 0 && succeededCount < total {
+		unitPrice, quantity := extractBillingSnapshot(task)
+		if unitPrice > 0 && quantity == total && unitPrice*quantity == task.CreditCost {
+			if err := refundPartialMainImage(db, task, total, succeededCount, unitPrice); err != nil {
+				logger2.GetLogger().Errorf(
+					"[main_image] task=%d user=%d partial refund failed: total=%d succeeded=%d unit=%d err=%v",
+					task.Id, task.UserId, total, succeededCount, unitPrice, err)
+				_ = db.Model(task).Update("error_message",
+					fmt.Sprintf("partial refund failed: %v", err)).Error
+			}
+		} else if unitPrice > 0 {
+			logger2.GetLogger().Warnf(
+				"[main_image] task=%d billing snapshot mismatch: unit=%d qty=%d total_types=%d credit_cost=%d, skip partial refund",
+				task.Id, unitPrice, quantity, total, task.CreditCost)
+		}
 	}
 
 	updateProgress(db, task, 80)
@@ -437,4 +452,50 @@ func buildVisionClients(db *gorm.DB) ([]*provider.OpenAIVisionCopywriter, error)
 		return nil, fmt.Errorf("视觉模型 %s api_endpoint 未配置", m.Name)
 	}
 	return clients, nil
+}
+
+func extractBillingSnapshot(task *model.AiImageTask) (unitPrice, quantity int) {
+	billing, ok := task.InputJSON["_billing"].(map[string]interface{})
+	if !ok {
+		return 0, 0
+	}
+	if v, ok := billing["unit_price"].(float64); ok && v > 0 {
+		unitPrice = int(v)
+	}
+	if v, ok := billing["quantity"].(float64); ok && v > 0 {
+		quantity = int(v)
+	}
+	return
+}
+
+func refundPartialMainImage(db *gorm.DB, task *model.AiImageTask, total, succeeded, unitCost int) error {
+	if task == nil || task.Id == 0 || total <= 0 || succeeded <= 0 || succeeded >= total || unitCost <= 0 {
+		return nil
+	}
+	failed := total - succeeded
+	refund := failed * unitCost
+	finalCost := succeeded * unitCost
+	expectedCost := total * unitCost
+	return db.Transaction(func(tx *gorm.DB) error {
+		taskResult := tx.Model(&model.AiImageTask{}).
+			Where("id = ? AND credit_cost = ?", task.Id, expectedCost).
+			Update("credit_cost", finalCost)
+		if taskResult.Error != nil {
+			return fmt.Errorf("update main_image credit_cost: %w", taskResult.Error)
+		}
+		if taskResult.RowsAffected == 0 {
+			return fmt.Errorf("credit_cost already changed (expected %d), skip refund", expectedCost)
+		}
+		userResult := tx.Model(&model.User{}).
+			Where("id = ?", task.UserId).
+			UpdateColumn("power", gorm.Expr("power + ?", refund))
+		if userResult.Error != nil {
+			return fmt.Errorf("refund main_image credits: %w", userResult.Error)
+		}
+		if userResult.RowsAffected == 0 {
+			return fmt.Errorf("user %d not found, cannot refund", task.UserId)
+		}
+		task.CreditCost = finalCost
+		return nil
+	})
 }

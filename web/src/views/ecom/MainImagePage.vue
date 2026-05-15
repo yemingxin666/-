@@ -256,7 +256,7 @@ const sortedTypes = computed(() => {
   return [...configStore.mainImageTypes].sort((a, b) => getScore(b.value) - getScore(a.value))
 })
 
-const estimatedCost = computed(() => selectedTypes.value.length * 10)
+const estimatedCost = computed(() => selectedTypes.value.length * configStore.getModelUnitPrice(null, 'main_image'))
 
 const copywrite = async () => {
   if (!form.value.reference_assets.length) { ElMessage.warning('请先上传参考图'); return }

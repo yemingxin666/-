@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	logger2 "geekai/logger"
 	"geekai/service/aicommerce"
 	"geekai/service/aicommerce/provider"
 	"geekai/service/oss"
@@ -100,17 +101,18 @@ func RunWhiteBg(
 		return fmt.Errorf("white_bg: no image processed successfully")
 	}
 
-	// 按张计费：若部分张数失败，按失败张数退款并同步 credit_cost 落库
-	// - dispatcher 成功分支不退款，所以这里的退款只在 chain 内完成
-	// - 若 succeeded == total，不退款，保留原扣费
-	if failed := total - succeeded; failed > 0 && task.CreditCost > 0 && total > 0 {
-		unit := task.CreditCost / total
-		refund := unit * failed
-		if refund > 0 {
-			db.Model(&model.User{}).Where("id = ?", task.UserId).
-				UpdateColumn("power", gorm.Expr("power + ?", refund))
-			db.Model(task).Update("credit_cost", task.CreditCost-refund)
-			task.CreditCost = task.CreditCost - refund
+	if succeeded < total {
+		unitPrice, quantity := extractBillingSnapshot(task)
+		if unitPrice > 0 && quantity == total && unitPrice*quantity == task.CreditCost {
+			if err := refundPartialWhiteBg(db, task, total, succeeded, unitPrice); err != nil {
+				logger2.GetLogger().Errorf("[white_bg] task=%d partial refund failed: %v", task.Id, err)
+				_ = db.Model(task).Update("error_message",
+					fmt.Sprintf("white_bg partial refund failed: %v", err)).Error
+			}
+		} else {
+			logger2.GetLogger().Warnf(
+				"[white_bg] task=%d billing snapshot mismatch: unit=%d qty=%d total=%d credit_cost=%d, skip partial refund",
+				task.Id, unitPrice, quantity, total, task.CreditCost)
 		}
 	}
 	return nil
@@ -240,4 +242,36 @@ func resolveReferenceURL(a model.AiImageAsset, uploader oss.Uploader, cfg aicomm
 		return raw, nil
 	}
 	return signed, nil
+}
+
+func refundPartialWhiteBg(db *gorm.DB, task *model.AiImageTask, total, succeeded, unitCost int) error {
+	if task == nil || task.Id == 0 || total <= 0 || succeeded <= 0 || succeeded >= total || unitCost <= 0 {
+		return nil
+	}
+	failed := total - succeeded
+	refund := failed * unitCost
+	finalCost := succeeded * unitCost
+	expectedCost := total * unitCost
+	return db.Transaction(func(tx *gorm.DB) error {
+		taskResult := tx.Model(&model.AiImageTask{}).
+			Where("id = ? AND credit_cost = ?", task.Id, expectedCost).
+			Update("credit_cost", finalCost)
+		if taskResult.Error != nil {
+			return fmt.Errorf("update white_bg credit_cost: %w", taskResult.Error)
+		}
+		if taskResult.RowsAffected == 0 {
+			return fmt.Errorf("credit_cost already changed (expected %d), skip refund", expectedCost)
+		}
+		userResult := tx.Model(&model.User{}).
+			Where("id = ?", task.UserId).
+			UpdateColumn("power", gorm.Expr("power + ?", refund))
+		if userResult.Error != nil {
+			return fmt.Errorf("refund white_bg credits: %w", userResult.Error)
+		}
+		if userResult.RowsAffected == 0 {
+			return fmt.Errorf("user %d not found, cannot refund", task.UserId)
+		}
+		task.CreditCost = finalCost
+		return nil
+	})
 }
