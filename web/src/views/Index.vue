@@ -5,7 +5,7 @@
     <div class="menu-box">
       <el-menu mode="horizontal" :ellipsis="false">
         <div class="menu-item">
-          <img :src="logo" class="logo" alt="Geek-AI" />
+          <img :src="logo" class="logo" alt="韩絮服饰" />
         </div>
         <div class="menu-item">
           <span v-if="!isLogin">
@@ -45,7 +45,7 @@
             @click="router.push(item.url)"
           >
             <i :class="'iconfont mb-2 ' + item.icon" v-if="item.icon.startsWith('icon')"></i>
-            <el-image :src="item.icon" class="rounded-lg w-10 h-10 mb-2" alt="Geek-AI" v-else />
+            <el-image :src="item.icon" class="rounded-lg w-10 h-10 mb-2" alt="韩絮服饰" v-else />
             <div>{{ item.name }}</div>
           </div>
         </el-space>
@@ -72,7 +72,7 @@
 <script setup>
 import FooterBar from '@/components/FooterBar.vue'
 import ThemeChange from '@/components/ThemeChange.vue'
-import { checkSession, getLicenseInfo, getSystemInfo } from '@/store/cache'
+import { checkSession, getSystemInfo } from '@/store/cache'
 import { removeUserToken } from '@/store/session'
 import { httpGet } from '@/utils/http'
 import { isMobile } from '@/utils/libs'
@@ -86,8 +86,6 @@ const router = useRouter()
 
 const title = ref('')
 const logo = ref('')
-const license = ref({ de_copy: true })
-
 const isLogin = ref(false)
 const docsURL = ref(import.meta.env.VITE_DOCS_URL)
 const githubURL = ref(import.meta.env.VITE_GITHUB_URL)
@@ -119,15 +117,6 @@ onMounted(() => {
     })
     .catch((e) => {
       ElMessage.error('获取系统配置失败：' + e.message)
-    })
-
-  getLicenseInfo()
-    .then((res) => {
-      license.value = res.data
-    })
-    .catch((e) => {
-      license.value = { de_copy: false }
-      ElMessage.error('获取 License 配置失败：' + e.message)
     })
 
   httpGet('/api/menu/list?index=1')

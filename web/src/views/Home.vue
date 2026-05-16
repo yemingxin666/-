@@ -151,7 +151,7 @@
 import LoginDialog from '@/components/LoginDialog.vue'
 import ThemeChange from '@/components/ThemeChange.vue'
 import ConfigDialog from '@/components/UserInfoDialog.vue'
-import { checkSession, getLicenseInfo, getSystemInfo } from '@/store/cache'
+import { checkSession, getSystemInfo } from '@/store/cache'
 import { removeUserToken } from '@/store/session'
 import { useSharedStore } from '@/store/sharedata'
 import { showMessageError } from '@/utils/dialog'
@@ -175,7 +175,6 @@ const store = useSharedStore()
 const loginUser = ref({})
 const routerViewKey = ref(0)
 const showConfigDialog = ref(false)
-const license = ref({ de_copy: true })
 const showLoginDialog = ref(false)
 const authReady = ref(false)
 const githubURL = ref(import.meta.env.VITE_GITHUB_URL)
@@ -288,15 +287,6 @@ const loadPageData = () => {
     })
     .catch((e) => {
       ElMessage.error('获取系统菜单失败：' + e.message)
-    })
-
-  getLicenseInfo()
-    .then((res) => {
-      license.value = res.data
-    })
-    .catch((e) => {
-      license.value = { de_copy: false }
-      showMessageError('获取 License 配置：' + e.message)
     })
 
   httpGet('/api/config/get?key=notice')

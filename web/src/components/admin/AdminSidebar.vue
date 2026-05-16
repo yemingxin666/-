@@ -92,34 +92,6 @@ const items = [
     title: '用户管理',
   },
   {
-    icon: 'menu',
-    index: '1',
-    title: '应用管理',
-    subs: [
-      {
-        index: '/admin/app',
-        title: '应用列表',
-        icon: 'sub-menu',
-      },
-      {
-        index: '/admin/app/type',
-        title: '应用分类',
-        icon: 'chuangzuo',
-      },
-    ],
-  },
-
-  {
-    icon: 'api-key',
-    index: '/admin/apikey',
-    title: 'API-KEY',
-  },
-  {
-    icon: 'model',
-    index: '/admin/chat/model',
-    title: '模型管理',
-  },
-  {
     icon: 'recharge',
     index: '/admin/product',
     title: '充值产品',
@@ -133,69 +105,6 @@ const items = [
     icon: 'reward',
     index: '/admin/redeem',
     title: '兑换码',
-  },
-  {
-    icon: 'control',
-    index: '/admin/functions',
-    title: '函数管理',
-  },
-  {
-    icon: 'menu',
-    index: '2',
-    title: '创作记录',
-    subs: [
-      {
-        icon: 'prompt',
-        index: '/admin/chats',
-        title: '对话记录',
-      },
-      {
-        icon: 'image',
-        index: '/admin/images',
-        title: '绘图记录',
-      },
-      {
-        icon: 'mp3',
-        index: '/admin/medias',
-        title: '音视频记录',
-      },
-    ],
-  },
-  {
-    icon: 'jimeng',
-    index: '/admin/jimeng',
-    title: '即梦AI',
-    subs: [
-      {
-        icon: 'list',
-        index: '/admin/jimeng/jobs',
-        title: '任务列表',
-      },
-
-      {
-        icon: 'config',
-        index: '/admin/jimeng/config',
-        title: '即梦设置',
-      },
-    ],
-  },
-
-  {
-    icon: 'moderation',
-    index: '/admin/config/moderation',
-    title: '文本审查',
-    subs: [
-      {
-        icon: 'list',
-        index: '/admin/moderation/list',
-        title: '审核记录',
-      },
-      {
-        icon: 'config',
-        index: '/admin/moderation/config',
-        title: '审查配置',
-      },
-    ],
   },
   {
     icon: 'image',
@@ -257,11 +166,6 @@ const items = [
         title: '菜单配置',
       },
       {
-        icon: 'license',
-        index: '/admin/config/license',
-        title: '授权激活',
-      },
-      {
         icon: 'recharge',
         index: '/admin/config/payment',
         title: '支付配置',
@@ -307,11 +211,6 @@ const items = [
         icon: 'info',
         index: '/admin/config/privacy',
         title: '隐私声明',
-      },
-      {
-        icon: 'xmind',
-        index: '/admin/config/markmap',
-        title: '思维导图配置',
       },
     ],
   },

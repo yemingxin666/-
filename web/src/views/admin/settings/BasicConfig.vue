@@ -69,7 +69,7 @@
           </el-form-item>
 
           <el-form-item label="版权信息" prop="copyright">
-            <el-input v-model="system['copyright']" placeholder="更改此选项需要获取 License 授权" />
+            <el-input v-model="system['copyright']" placeholder="请输入版权信息" />
           </el-form-item>
 
           <el-form-item label="ICP 备案号" prop="icp">
@@ -118,53 +118,6 @@
               </template>
             </el-input>
           </el-form-item>
-          <el-form-item>
-            <template #label>
-              <div class="label-title">
-                系统辅助AI模型
-                <span class="text-xs text-gray-500"
-                  >（用来辅助用户生成提示词，翻译的AI模型，默认使用 gpt-4o-mini）</span
-                >
-              </div>
-            </template>
-            <el-select
-              v-model.number="system['assistant_model_id']"
-              :filterable="true"
-              placeholder="选择一个系统辅助AI模型"
-              style="width: 100%"
-            >
-              <el-option
-                v-for="item in models"
-                :key="item.id"
-                :label="item.name"
-                :value="item.id"
-              />
-            </el-select>
-          </el-form-item>
-
-          <el-form-item label="开启聊天上下文">
-            <el-switch v-model="system['enable_context']" />
-          </el-form-item>
-          <el-form-item label="会话上下文深度">
-            <div class="tip-input-line">
-              <el-input-number v-model="system['context_deep']" :min="0" :max="10" />
-              <div class="tip">
-                会话上下文深度：在老会话中继续会话，默认加载多少条聊天记录作为上下文。如果设置为 0
-                则不加载聊天记录，仅仅使用当前角色的上下文。该配置参数必须设置需要为偶数。
-              </div>
-            </div>
-          </el-form-item>
-
-          <el-form-item>
-            <template #label>
-              <div class="label-title">
-                SD反向提示词
-                <span class="text-xs text-gray-500">（Stable-Diffusion 绘画默认反向提示词）</span>
-              </div>
-            </template>
-            <el-input type="textarea" :rows="2" v-model="system['sd_neg_prompt']" placeholder="" />
-          </el-form-item>
-
           <el-form-item label="订单支付超时时间" prop="order_pay_timeout">
             <template #label>
               <div class="label-title">
@@ -224,11 +177,10 @@ import Compressor from 'compressorjs'
 import { ElMessage } from 'element-plus'
 import { onMounted, reactive, ref } from 'vue'
 
-const system = ref({ models: [] })
+const system = ref({})
 const configBak = ref({})
 const loading = ref(true)
 const systemFormRef = ref(null)
-const models = ref([])
 const menus = ref([])
 const mjModels = ref([
   { name: '慢速（Relax）', value: 'relax' },
@@ -248,14 +200,6 @@ onMounted(() => {
     })
     .finally(() => {
       loading.value = false
-    })
-
-  httpGet('/api/admin/model/list')
-    .then((res) => {
-      models.value = res.data
-    })
-    .catch((e) => {
-      ElMessage.error('获取模型失败：' + e.message)
     })
 
   httpGet('/api/admin/menu/list')

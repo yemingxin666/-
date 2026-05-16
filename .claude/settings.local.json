@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "mcp__contextweaver__codebase-retrieval"
+      "mcp__contextweaver__codebase-retrieval",
+      "mcp__mysql-db__get_connection_status",
+      "mcp__mysql-db__execute_query"
     ]
   }
 }

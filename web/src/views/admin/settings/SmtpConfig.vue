@@ -97,7 +97,7 @@ const smtpConfig = ref({
   use_tls: false,
   host: 'smtp.163.com',
   port: 465,
-  app_name: 'GeekAI',
+  app_name: '韩絮服饰',
   from: '',
   password: '',
 })

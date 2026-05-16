@@ -823,7 +823,7 @@ func (s *ImageService) resolveCopywriteVisionModel(ctx context.Context) (*model.
 				First(&m).Error
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return nil, fmt.Errorf("未找到可用的视觉识别模型（model_type='chat', status='active'），请在后台 geekai_ai_models 中配置")
+					return nil, fmt.Errorf("未找到可用的视觉识别模型（model_type='chat', status='active'），请在后台 puningai_ai_models 中配置")
 				}
 				return nil, err
 			}

@@ -15,20 +15,13 @@ import (
 	"geekai/handler"
 	"geekai/handler/admin"
 	handlerAicommerce "geekai/handler/aicommerce"
-	"geekai/service/aicommerce"
-	aicWorker "geekai/service/aicommerce/worker"
 	logger2 "geekai/logger"
 	"geekai/service"
-	"geekai/service/dalle"
-	"geekai/service/jimeng"
-	"geekai/service/mj"
-	"geekai/service/moderation"
+	"geekai/service/aicommerce"
+	aicWorker "geekai/service/aicommerce/worker"
 	"geekai/service/oss"
 	"geekai/service/payment"
-	"geekai/service/sd"
 	"geekai/service/sms"
-	"geekai/service/suno"
-	"geekai/service/video"
 	"geekai/store"
 	"io"
 	"log"
@@ -131,22 +124,14 @@ func main() {
 		}),
 
 		// 创建控制器
-		fx.Provide(handler.NewChatAppHandler),
 		fx.Provide(handler.NewUserHandler),
-		fx.Provide(handler.NewChatHandler),
 		fx.Provide(handler.NewNetHandler),
-		fx.Provide(handler.NewSmsHandler),
-		fx.Provide(handler.NewRedeemHandler),
 		fx.Provide(handler.NewCaptchaHandler),
-		fx.Provide(handler.NewMidJourneyHandler),
-		fx.Provide(handler.NewChatModelHandler),
-		fx.Provide(handler.NewSdJobHandler),
 		fx.Provide(handler.NewPaymentHandler),
 		fx.Provide(handler.NewOrderHandler),
 		fx.Provide(handler.NewProductHandler),
 		fx.Provide(handler.NewConfigHandler),
 		fx.Provide(handler.NewPowerLogHandler),
-		fx.Provide(handler.NewJimengHandler),
 
 		fx.Provide(service.NewMigrationService),
 		fx.Invoke(func(migrationService *service.MigrationService) {
@@ -156,16 +141,12 @@ func main() {
 		// 管理后台控制器
 		fx.Provide(admin.NewConfigHandler),
 		fx.Provide(admin.NewAdminHandler),
-		fx.Provide(admin.NewApiKeyHandler),
 		fx.Provide(admin.NewUserHandler),
-		fx.Provide(admin.NewChatAppHandler),
 		fx.Provide(admin.NewRedeemHandler),
 		fx.Provide(admin.NewDashboardHandler),
-		fx.Provide(admin.NewChatModelHandler),
 		fx.Provide(admin.NewProductHandler),
 		fx.Provide(admin.NewOrderHandler),
 		fx.Provide(admin.NewPowerLogHandler),
-		fx.Provide(admin.NewAdminJimengHandler),
 
 		// 邮件服务
 		fx.Provide(service.NewSmtpService),
@@ -173,50 +154,6 @@ func main() {
 		fx.Provide(service.NewLicenseService),
 		fx.Invoke(func(licenseService *service.LicenseService) {
 			licenseService.SyncLicense()
-		}),
-
-		// Dalle 服务
-		fx.Provide(dalle.NewService),
-		fx.Invoke(func(s *dalle.Service) {
-			s.Run()
-			s.DownloadImages()
-			s.CheckTaskStatus()
-		}),
-
-		// MidJourney service pool
-		fx.Provide(mj.NewService),
-		fx.Provide(mj.NewClient),
-		fx.Invoke(func(s *mj.Service) {
-			s.Run()
-			s.SyncTaskProgress()
-			s.DownloadImages()
-		}),
-
-		// Stable Diffusion 机器人
-		fx.Provide(sd.NewService),
-		fx.Invoke(func(s *sd.Service, config *types.AppConfig) {
-			s.Run()
-			s.CheckTaskStatus()
-		}),
-
-		fx.Provide(suno.NewService),
-		fx.Invoke(func(s *suno.Service) {
-			s.Run()
-			s.SyncTaskProgress()
-			s.DownloadFiles()
-		}),
-		fx.Provide(video.NewService),
-		fx.Invoke(func(s *video.Service) {
-			s.Run()
-			s.SyncTaskProgress()
-			s.DownloadFiles()
-		}),
-
-		// 即梦AI 服务
-		fx.Provide(jimeng.NewClient),
-		fx.Provide(jimeng.NewService),
-		fx.Invoke(func(service *jimeng.Service) {
-			service.Start()
 		}),
 
 		fx.Provide(service.NewSnowflake),
@@ -247,42 +184,14 @@ func main() {
 		// 用户服务
 		fx.Provide(service.NewUserService),
 
-		// 文本审查服务
-		fx.Provide(moderation.NewGiteeAIModeration),
-		fx.Provide(moderation.NewBaiduAIModeration),
-		fx.Provide(moderation.NewTencentAIModeration),
-		fx.Provide(moderation.NewServiceManager),
-		fx.Provide(admin.NewModerationHandler),
-		fx.Invoke(func(s *core.AppServer, h *admin.ModerationHandler) {
-			h.RegisterRoutes()
-		}),
-
 		// 注册路由
-		fx.Invoke(func(s *core.AppServer, h *handler.ChatAppHandler) {
-			h.RegisterRoutes()
-		}),
 		fx.Invoke(func(s *core.AppServer, h *handler.UserHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Invoke(func(s *core.AppServer, h *handler.ChatHandler) {
 			h.RegisterRoutes()
 		}),
 		fx.Invoke(func(s *core.AppServer, h *handler.NetHandler) {
 			h.RegisterRoutes()
 		}),
-		fx.Invoke(func(s *core.AppServer, h *handler.SmsHandler) {
-			h.RegisterRoutes()
-		}),
 		fx.Invoke(func(s *core.AppServer, h *handler.CaptchaHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Invoke(func(s *core.AppServer, h *handler.RedeemHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Invoke(func(s *core.AppServer, h *handler.MidJourneyHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Invoke(func(s *core.AppServer, h *handler.SdJobHandler) {
 			h.RegisterRoutes()
 		}),
 		fx.Invoke(func(s *core.AppServer, h *handler.ConfigHandler) {
@@ -296,25 +205,13 @@ func main() {
 		fx.Invoke(func(s *core.AppServer, h *admin.ManagerHandler) {
 			h.RegisterRoutes()
 		}),
-		fx.Invoke(func(s *core.AppServer, h *admin.ApiKeyHandler) {
-			h.RegisterRoutes()
-		}),
 		fx.Invoke(func(s *core.AppServer, h *admin.UserHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Invoke(func(s *core.AppServer, h *admin.ChatAppHandler) {
 			h.RegisterRoutes()
 		}),
 		fx.Invoke(func(s *core.AppServer, h *admin.RedeemHandler) {
 			h.RegisterRoutes()
 		}),
 		fx.Invoke(func(s *core.AppServer, h *admin.DashboardHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Invoke(func(s *core.AppServer, h *handler.ChatModelHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Invoke(func(s *core.AppServer, h *admin.ChatModelHandler) {
 			h.RegisterRoutes()
 		}),
 		fx.Invoke(func(s *core.AppServer, h *handler.PaymentHandler) {
@@ -339,24 +236,11 @@ func main() {
 			h.RegisterRoutes()
 		}),
 
-		fx.Provide(admin.NewFunctionHandler),
-		fx.Invoke(func(s *core.AppServer, h *admin.FunctionHandler) {
-			h.RegisterRoutes()
-		}),
-
 		fx.Provide(admin.NewUploadHandler),
 		fx.Invoke(func(s *core.AppServer, h *admin.UploadHandler) {
 			h.RegisterRoutes()
 		}),
 
-		fx.Provide(handler.NewFunctionHandler),
-		fx.Invoke(func(s *core.AppServer, h *handler.FunctionHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Provide(admin.NewChatHandler),
-		fx.Invoke(func(s *core.AppServer, h *admin.ChatHandler) {
-			h.RegisterRoutes()
-		}),
 		fx.Invoke(func(s *core.AppServer, h *handler.PowerLogHandler) {
 			h.RegisterRoutes()
 		}),
@@ -371,46 +255,7 @@ func main() {
 		fx.Invoke(func(s *core.AppServer, h *handler.MenuHandler) {
 			h.RegisterRoutes()
 		}),
-		fx.Provide(handler.NewMarkMapHandler),
-		fx.Invoke(func(s *core.AppServer, h *handler.MarkMapHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Provide(handler.NewDallJobHandler),
-		fx.Invoke(func(s *core.AppServer, h *handler.DallJobHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Provide(handler.NewSunoHandler),
-		fx.Invoke(func(s *core.AppServer, h *handler.SunoHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Provide(handler.NewVideoHandler),
-		fx.Invoke(func(s *core.AppServer, h *handler.VideoHandler) {
-			h.RegisterRoutes()
-		}),
 
-		// 即梦AI 路由
-		fx.Invoke(func(s *core.AppServer, h *handler.JimengHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Invoke(func(s *core.AppServer, h *admin.AdminJimengHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Provide(admin.NewChatAppTypeHandler),
-		fx.Invoke(func(s *core.AppServer, h *admin.ChatAppTypeHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Provide(handler.NewChatAppTypeHandler),
-		fx.Invoke(func(s *core.AppServer, h *handler.ChatAppTypeHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Provide(handler.NewTestHandler),
-		fx.Invoke(func(s *core.AppServer, h *handler.TestHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Provide(handler.NewPromptHandler),
-		fx.Invoke(func(s *core.AppServer, h *handler.PromptHandler) {
-			h.RegisterRoutes()
-		}),
 		fx.Invoke(func(s *core.AppServer, db *gorm.DB) {
 			go func() {
 				err := s.Run(db)
@@ -431,18 +276,6 @@ func main() {
 					return lc.OnStop(ctx)
 				},
 			})
-		}),
-		fx.Provide(admin.NewImageHandler),
-		fx.Invoke(func(s *core.AppServer, h *admin.ImageHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Provide(admin.NewMediaHandler),
-		fx.Invoke(func(s *core.AppServer, h *admin.MediaHandler) {
-			h.RegisterRoutes()
-		}),
-		fx.Provide(handler.NewRealtimeHandler),
-		fx.Invoke(func(s *core.AppServer, h *handler.RealtimeHandler) {
-			h.RegisterRoutes()
 		}),
 
 		// 电商 AI 生图模块

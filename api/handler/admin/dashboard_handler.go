@@ -50,25 +50,17 @@ type UserBrief struct {
 }
 
 type statsVo struct {
-	Users          int64                         `json:"users"`
-	Chats          int64                         `json:"chats"`
-	Tokens         int                           `json:"tokens"`
-	Income         float64                       `json:"income"`
-	Chart          map[string]map[string]float64 `json:"chart"`
-	TodayUsers     int64                         `json:"todayUsers"`
-	TodayChats     int64                         `json:"todayChats"`
-	TodayTokens    int                           `json:"todayTokens"`
-	TodayIncome    float64                       `json:"todayIncome"`
-	TodayOrders    int64                         `json:"todayOrders"`
-	TodayImageJobs int64                         `json:"todayImageJobs"`
-	TodayVideoJobs int64                         `json:"todayVideoJobs"`
-	TodayMusicJobs int64                         `json:"todayMusicJobs"`
-	Orders         int64                         `json:"orders"`
-	ImageJobs      int64                         `json:"imageJobs"`
-	VideoJobs      int64                         `json:"videoJobs"`
-	MusicJobs      int64                         `json:"musicJobs"`
-	RecentOrders   []OrderBrief                  `json:"recentOrders"`
-	RecentUsers    []UserBrief                   `json:"recentUsers"`
+	Users        int64                         `json:"users"`
+	Tokens       int                           `json:"tokens"`
+	Income       float64                       `json:"income"`
+	Chart        map[string]map[string]float64 `json:"chart"`
+	TodayUsers   int64                         `json:"todayUsers"`
+	TodayTokens  int                           `json:"todayTokens"`
+	TodayIncome  float64                       `json:"todayIncome"`
+	TodayOrders  int64                         `json:"todayOrders"`
+	Orders       int64                         `json:"orders"`
+	RecentOrders []OrderBrief                  `json:"recentOrders"`
+	RecentUsers  []UserBrief                   `json:"recentUsers"`
 }
 
 func (h *DashboardHandler) Stats(c *gin.Context) {
@@ -81,12 +73,6 @@ func (h *DashboardHandler) Stats(c *gin.Context) {
 
 	// 今日新增用户
 	h.DB.Model(&model.User{}).Where("created_at > ?", zeroTime).Count(&stats.TodayUsers)
-
-	// 总对话数
-	h.DB.Model(&model.ChatItem{}).Count(&stats.Chats)
-
-	// 今日新增对话
-	h.DB.Model(&model.ChatItem{}).Where("created_at > ?", zeroTime).Count(&stats.TodayChats)
 
 	// 总算力消耗
 	var powerLogs []model.PowerLog
@@ -121,42 +107,6 @@ func (h *DashboardHandler) Stats(c *gin.Context) {
 
 	// 今日订单数
 	h.DB.Model(&model.Order{}).Where("status = ?", types.OrderPaidSuccess).Where("created_at > ?", zeroTime).Count(&stats.TodayOrders)
-
-	// 图片生成任务统计
-	var mjJobs, sdJobs, dallJobs, jimengImageJobs int64
-	h.DB.Model(&model.MidJourneyJob{}).Count(&mjJobs)
-	h.DB.Model(&model.SdJob{}).Count(&sdJobs)
-	h.DB.Model(&model.DallJob{}).Count(&dallJobs)
-	h.DB.Model(&model.JimengJob{}).Where("type IN ?", []string{"text_to_image", "image_to_image", "image_edit", "image_effects"}).Count(&jimengImageJobs)
-	stats.ImageJobs = mjJobs + sdJobs + dallJobs + jimengImageJobs
-
-	logger.Info("stats.ImageJobs", stats.ImageJobs)
-
-	// 今日图片生成任务统计
-	var todayMjJobs, todaySdJobs, todayDallJobs, todayJimengImageJobs int64
-	h.DB.Model(&model.MidJourneyJob{}).Where("created_at > ?", zeroTime).Count(&todayMjJobs)
-	h.DB.Model(&model.SdJob{}).Where("created_at > ?", zeroTime).Count(&todaySdJobs)
-	h.DB.Model(&model.DallJob{}).Where("created_at > ?", zeroTime).Count(&todayDallJobs)
-	h.DB.Model(&model.JimengJob{}).Where("type IN ?", []string{"text_to_image", "image_to_image", "image_edit", "image_effects"}).Where("created_at > ?", zeroTime).Count(&todayJimengImageJobs)
-	stats.TodayImageJobs = todayMjJobs + todaySdJobs + todayDallJobs + todayJimengImageJobs
-
-	// 视频生成任务统计
-	var videoJobs, jimengVideoJobs int64
-	h.DB.Model(&model.VideoJob{}).Count(&videoJobs)
-	h.DB.Model(&model.JimengJob{}).Where("type IN ?", []string{"text_to_video", "image_to_video"}).Count(&jimengVideoJobs)
-	stats.VideoJobs = videoJobs + jimengVideoJobs
-
-	// 今日视频生成任务统计
-	var todayVideoJobs, todayJimengVideoJobs int64
-	h.DB.Model(&model.VideoJob{}).Where("created_at > ?", zeroTime).Count(&todayVideoJobs)
-	h.DB.Model(&model.JimengJob{}).Where("type IN ?", []string{"text_to_video", "image_to_video"}).Where("created_at > ?", zeroTime).Count(&todayJimengVideoJobs)
-	stats.TodayVideoJobs = todayVideoJobs + todayJimengVideoJobs
-
-	// 音乐生成任务统计
-	h.DB.Model(&model.SunoJob{}).Count(&stats.MusicJobs)
-
-	// 今日音乐生成任务统计
-	h.DB.Model(&model.SunoJob{}).Where("created_at > ?", zeroTime).Count(&stats.TodayMusicJobs)
 
 	// recentOrders: 最近10条已支付订单
 	var orderList []model.Order

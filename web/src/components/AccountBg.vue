@@ -29,7 +29,7 @@ getSystemInfo()
   .catch((err) => {
     console.log(err)
     logo.value = '/images/logo.png'
-    title.value = 'Geek-AI'
+    title.value = '韩絮服饰'
   })
 </script>
 

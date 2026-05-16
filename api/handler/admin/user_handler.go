@@ -98,17 +98,15 @@ func (h *UserHandler) List(c *gin.Context) {
 
 func (h *UserHandler) Save(c *gin.Context) {
 	var data struct {
-		Id          uint     `json:"id"`
-		Password    string   `json:"password"`
-		Username    string   `json:"username"`
-		Mobile      string   `json:"mobile"`
-		Email       string   `json:"email"`
-		ChatRoles   []string `json:"chat_roles"`
-		ChatModels  []int    `json:"chat_models"`
-		ExpiredTime string   `json:"expired_time"`
-		Status      bool     `json:"status"`
-		Vip         bool     `json:"vip"`
-		Power       int      `json:"power"`
+		Id          uint   `json:"id"`
+		Password    string `json:"password"`
+		Username    string `json:"username"`
+		Mobile      string `json:"mobile"`
+		Email       string `json:"email"`
+		ExpiredTime string `json:"expired_time"`
+		Status      bool   `json:"status"`
+		Vip         bool   `json:"vip"`
+		Power       int    `json:"power"`
 	}
 	if err := c.ShouldBindJSON(&data); err != nil {
 		resp.ERROR(c, types.InvalidArgs)
@@ -137,11 +135,9 @@ func (h *UserHandler) Save(c *gin.Context) {
 		user.Status = data.Status
 		user.Vip = data.Vip
 		user.Power = data.Power
-		user.ChatRoles = utils.JsonEncode(data.ChatRoles)
-		user.ChatModels = utils.JsonEncode(data.ChatModels)
 		user.ExpiredTime = utils.Str2stamp(data.ExpiredTime)
 
-		res = h.DB.Select("username", "mobile", "email", "status", "vip", "power", "chat_roles_json", "chat_models_json", "expired_time").Updates(&user)
+		res = h.DB.Select("username", "mobile", "email", "status", "vip", "power", "expired_time").Updates(&user)
 
 		if res.Error != nil {
 			logger.Error("error with update database：", res.Error)
@@ -193,9 +189,6 @@ func (h *UserHandler) Save(c *gin.Context) {
 			Salt:        salt,
 			Power:       data.Power,
 			Status:      true,
-			ChatRoles:   utils.JsonEncode(data.ChatRoles),
-			ChatConfig:  "{}",
-			ChatModels:  utils.JsonEncode(data.ChatModels),
 			ExpiredTime: utils.Str2stamp(data.ExpiredTime),
 		}
 		if h.licenseService.GetLicense().Configs.DeCopy {
@@ -264,14 +257,6 @@ func (h *UserHandler) Remove(c *gin.Context) {
 		if err = tx.Where("id", id).Delete(&model.User{}).Error; err != nil {
 			break
 		}
-		// 删除聊天记录
-		if err = tx.Unscoped().Where("user_id = ?", id).Delete(&model.ChatItem{}).Error; err != nil {
-			break
-		}
-		// 删除聊天历史记录
-		if err = tx.Unscoped().Where("user_id = ?", id).Delete(&model.ChatMessage{}).Error; err != nil {
-			break
-		}
 		// 删除登录日志
 		if err = tx.Where("user_id = ?", id).Delete(&model.UserLoginLog{}).Error; err != nil {
 			break
@@ -283,24 +268,8 @@ func (h *UserHandler) Remove(c *gin.Context) {
 		if err = tx.Where("user_id = ?", id).Delete(&model.InviteLog{}).Error; err != nil {
 			break
 		}
-		// 删除众筹日志
+		// 删除兑换码日志
 		if err = tx.Where("user_id = ?", id).Delete(&model.Redeem{}).Error; err != nil {
-			break
-		}
-		// 删除绘图任务
-		if err = tx.Where("user_id = ?", id).Delete(&model.MidJourneyJob{}).Error; err != nil {
-			break
-		}
-		if err = tx.Where("user_id = ?", id).Delete(&model.SdJob{}).Error; err != nil {
-			break
-		}
-		if err = tx.Where("user_id = ?", id).Delete(&model.DallJob{}).Error; err != nil {
-			break
-		}
-		if err = tx.Where("user_id = ?", id).Delete(&model.SunoJob{}).Error; err != nil {
-			break
-		}
-		if err = tx.Where("user_id = ?", id).Delete(&model.VideoJob{}).Error; err != nil {
 			break
 		}
 	}

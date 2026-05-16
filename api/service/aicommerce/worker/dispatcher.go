@@ -221,7 +221,7 @@ func (d *Dispatcher) resolveImageClient(ctx context.Context, task *model.AiImage
 		First(&aiModel).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("active image model %q not found in geekai_ai_models", modelName)
+			return nil, fmt.Errorf("active image model %q not found in puningai_ai_models", modelName)
 		}
 		return nil, fmt.Errorf("load image model %q: %w", modelName, err)
 	}

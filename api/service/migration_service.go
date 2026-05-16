@@ -160,9 +160,6 @@ func (s *MigrationService) MigrateConfigContent() error {
 
 // 数据表迁移
 func (s *MigrationService) TableMigration() {
-	// 新数据表
-	s.db.AutoMigrate(&model.Moderation{})
-
 	// 订单字段整理
 	if s.db.Migrator().HasColumn(&model.Order{}, "pay_type") {
 		s.db.Migrator().RenameColumn(&model.Order{}, "pay_type", "channel")
@@ -189,20 +186,8 @@ func (s *MigrationService) TableMigration() {
 	if s.db.Migrator().HasColumn(&model.Order{}, "deleted_at") {
 		s.db.Migrator().DropColumn(&model.Order{}, "deleted_at")
 	}
-	if s.db.Migrator().HasColumn(&model.ChatItem{}, "deleted_at") {
-		s.db.Migrator().DropColumn(&model.ChatItem{}, "deleted_at")
-	}
-	if s.db.Migrator().HasColumn(&model.ChatMessage{}, "deleted_at") {
-		s.db.Migrator().DropColumn(&model.ChatMessage{}, "deleted_at")
-	}
 	if s.db.Migrator().HasColumn(&model.User{}, "chat_config") {
 		s.db.Migrator().DropColumn(&model.User{}, "chat_config")
-	}
-	if s.db.Migrator().HasColumn(&model.ChatModel{}, "category") {
-		s.db.Migrator().DropColumn(&model.ChatModel{}, "category")
-	}
-	if s.db.Migrator().HasColumn(&model.ChatModel{}, "description") {
-		s.db.Migrator().DropColumn(&model.ChatModel{}, "description")
 	}
 	if s.db.Migrator().HasColumn(&model.Product{}, "discount") {
 		s.db.Migrator().DropColumn(&model.Product{}, "discount")

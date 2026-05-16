@@ -26,7 +26,7 @@
   </div>
 </template>
 <script setup>
-import { getLicenseInfo, getSystemInfo } from '@/store/cache'
+import { getSystemInfo } from '@/store/cache'
 import { showMessageError } from '@/utils/dialog'
 import { ref } from 'vue'
 
@@ -36,7 +36,6 @@ const gitURL = ref(import.meta.env.VITE_GITHUB_URL)
 const copyRight = ref('')
 const icp = ref('')
 const gaBeian = ref('')
-const license = ref({})
 const props = defineProps({
   textColor: {
     type: String,
@@ -50,7 +49,7 @@ getSystemInfo()
   .then((res) => {
     title.value = res.data.title ?? import.meta.env.VITE_TITLE
     copyRight.value =
-      (res.data.copyright ? res.data.copyright : '极客学长') +
+      (res.data.copyright ? res.data.copyright : '韩絮服饰') +
       ' © 2023 - ' +
       new Date().getFullYear() +
       ' All rights reserved'
@@ -61,13 +60,6 @@ getSystemInfo()
     showMessageError('获取系统配置失败：' + e.message)
   })
 
-getLicenseInfo()
-  .then((res) => {
-    license.value = res.data
-  })
-  .catch((e) => {
-    showMessageError('获取 License 失败：' + e.message)
-  })
 
 // 获取公安备案号
 const getCodeNum = (code) => {

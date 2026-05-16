@@ -138,28 +138,6 @@
           />
         </el-form-item>
 
-        <el-form-item label="聊天角色" prop="chat_roles">
-          <el-select
-            v-model="user.chat_roles"
-            multiple
-            :filterable="true"
-            placeholder="选择聊天角色，多选"
-          >
-            <el-option v-for="item in roles" :key="item.key" :label="item.name" :value="item.key" />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="模型权限" prop="chat_models">
-          <el-select
-            v-model="user.chat_models"
-            multiple
-            :filterable="true"
-            placeholder="选择AI模型，多选"
-          >
-            <el-option v-for="item in models" :key="item.id" :label="item.name" :value="item.id" />
-          </el-select>
-        </el-form-item>
-
         <el-form-item label="启用状态">
           <el-switch v-model="user.status" />
         </el-form-item>
@@ -221,10 +199,8 @@ const query = ref({ username: '', page: 1, page_size: 15 })
 const title = ref('添加用户')
 const vipImg = ref('/images/menu/member.png')
 const add = ref(true)
-const user = ref({ chat_roles: [], chat_models: [] })
+const user = ref({})
 const pass = ref({ username: '', password: '', id: 0 })
-const roles = ref([])
-const models = ref([])
 const showUserEditDialog = ref(false)
 const showResetPassDialog = ref(false)
 const rules = reactive({
@@ -243,8 +219,6 @@ const rules = reactive({
     { required: true, message: '请输入提问次数' },
     { type: 'number', message: '请输入有效数字' },
   ],
-  chat_roles: [{ required: true, message: '请选择聊天角色', trigger: 'change' }],
-  chat_models: [{ required: true, message: '请选择AI模型', trigger: 'change' }],
 })
 const loading = ref(true)
 
@@ -252,22 +226,6 @@ const userEditFormRef = ref(null)
 
 onMounted(() => {
   fetchUserList(users.value.page, users.value.page_size)
-  // 获取角色列表
-  httpGet('/api/admin/role/list')
-    .then((res) => {
-      roles.value = res.data
-    })
-    .catch(() => {
-      ElMessage.error('获取聊天角色失败')
-    })
-
-  httpGet('/api/admin/model/list')
-    .then((res) => {
-      models.value = res.data
-    })
-    .catch((e) => {
-      ElMessage.error('获取模型失败：' + e.message)
-    })
 })
 
 const fetchUserList = function (page, pageSize) {
@@ -327,7 +285,7 @@ const userEdit = function (row) {
 }
 
 const addUser = () => {
-  user.value = { chat_id: 0, chat_roles: [], chat_models: [] }
+  user.value = {}
   title.value = '添加用户'
   showUserEditDialog.value = true
   add.value = true

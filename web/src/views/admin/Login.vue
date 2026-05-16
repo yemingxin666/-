@@ -72,7 +72,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const title = ref('Geek-AI Console')
+const title = ref('韩絮服饰 控制台')
 const username = ref(import.meta.env.VITE_ADMIN_USER)
 const password = ref(import.meta.env.VITE_ADMIN_PASS)
 const logo = ref('')

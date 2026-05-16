@@ -374,9 +374,6 @@ func (h *UserHandler) createNewUser(user model.User, inviteCode string) (model.U
 	user.Password = utils.GenPassword(user.Password, salt)
 	user.Avatar = "/images/avatar/user.png"
 	user.Status = true
-	user.ChatRoles = utils.JsonEncode([]string{"gpt"})
-	user.ChatConfig = "{}"
-	user.ChatModels = "{}"
 	user.Power = h.App.SysConfig.Base.InitPower
 
 	// 创建用户
