@@ -162,8 +162,8 @@ func main() {
 		fx.Provide(sms.NewAliYunSmsService),
 		fx.Provide(sms.NewBaoSmsService),
 		fx.Provide(sms.NewSmsManager),
-		fx.Provide(func(config *types.SystemConfig) *service.CaptchaService {
-			return service.NewCaptchaService(config.Captcha)
+		fx.Provide(func(config *types.SystemConfig, client *redis.Client) (*service.CaptchaService, error) {
+			return service.NewCaptchaService(config.Captcha, client)
 		}),
 		fx.Provide(func(config *types.SystemConfig, client *redis.Client) *service.WxLoginService {
 			return service.NewWxLoginService(config.WxLogin, client)

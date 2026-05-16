@@ -232,6 +232,7 @@ func (h *ConfigHandler) UpdateCaptcha(c *gin.Context) {
 		return
 	}
 
+	data.Type = "slide"
 	err := h.Update(types.ConfigKeyCaptcha, data)
 	if err != nil {
 		resp.ERROR(c, err.Error())

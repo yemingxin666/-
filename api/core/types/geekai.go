@@ -20,8 +20,7 @@ func init() {
 
 // CaptchaConfig 行为验证码配置
 type CaptchaConfig struct {
-	ApiKey  string `json:"api_key"`
-	Type    string `json:"type"` // 验证码类型, 可选值: "dot" 或 "slide"
+	Type    string `json:"type"` // 固定为 "slide"，保留字段兼容前端配置契约
 	Enabled bool   `json:"enabled"`
 }
 

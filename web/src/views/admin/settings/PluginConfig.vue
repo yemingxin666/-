@@ -10,22 +10,10 @@
         </template>
 
         <Alert type="info">
-          行为验证码服务，开启后用户登录的时候需要进行行为验证，可以有效防止恶意登录。<br />
-          请联系作者获取令牌填入下面输入框开通验证服务。
+          系统内置滑动行为验证码，开启后用户登录时需要进行滑动验证，可以有效防止暴力破解和自动化攻击。
         </Alert>
 
         <el-form :model="captchaConfig" label-position="top">
-          <el-form-item label="服务令牌">
-            <el-input v-model="captchaConfig.api_key" placeholder="请输入服务令牌" />
-          </el-form-item>
-
-          <el-form-item label="验证码类型">
-            <el-radio-group v-model="captchaConfig.type" size="large">
-              <el-radio value="dot" border>点选验证码</el-radio>
-              <el-radio value="slide" border>滑动验证码</el-radio>
-            </el-radio-group>
-          </el-form-item>
-
           <el-form-item label="启用验证码">
             <el-switch size="large" v-model="captchaConfig.enabled" />
           </el-form-item>
@@ -86,7 +74,6 @@ const loading = ref(false)
 
 // 行为验证码配置
 const captchaConfig = ref({
-  api_key: '',
   type: 'slide',
   enabled: false,
 })

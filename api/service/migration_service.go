@@ -125,10 +125,9 @@ func (s *MigrationService) MigrateConfigContent() error {
 	}
 
 	// 验证码配置
-	if err := s.saveConfig(types.ConfigKeyCaptcha, map[string]string{
-		"api_key": "",
-		"type":    "dot",
-		"enabled": "false",
+	if err := s.saveConfig(types.ConfigKeyCaptcha, types.CaptchaConfig{
+		Type:    "slide",
+		Enabled: false,
 	}); err != nil {
 		return fmt.Errorf("迁移配置内容失败: %v", err)
 	}

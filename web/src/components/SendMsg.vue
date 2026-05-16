@@ -10,7 +10,7 @@
       {{ btnText }}
     </el-button>
 
-    <captcha @success="doSendMsg" ref="captchaRef" :type="captchaType" />
+    <captcha @success="doSendMsg" ref="captchaRef" />
   </el-container>
 </template>
 
@@ -36,14 +36,12 @@ const canSend = ref(true)
 const loading = ref(false)
 const captchaRef = ref(null)
 const enableCaptcha = ref(false)
-const captchaType = ref('')
 let timer = null
 
 const storageKey = computed(() => `sms_cd_${props.scene}_${props.receiver}`)
 
 httpGet('/api/captcha/config').then((res) => {
   enableCaptcha.value = res.data['enabled']
-  captchaType.value = res.data['type']
 })
 
 const tickCooldown = () => {
@@ -107,7 +105,6 @@ const doSendMsg = (data) => {
     receiver: props.receiver,
     scene: props.scene,
     key: data.key,
-    dots: data.dots,
     x: data.x,
   })
     .then(() => {

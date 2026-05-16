@@ -96,7 +96,6 @@ func (h *SmsHandler) SendCode(c *gin.Context) {
 		Receiver string `json:"receiver"`
 		Scene    string `json:"scene"`
 		Key      string `json:"key"`
-		Dots     string `json:"dots,omitempty"`
 		X        int    `json:"x,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&data); err != nil {
@@ -111,13 +110,7 @@ func (h *SmsHandler) SendCode(c *gin.Context) {
 	}
 
 	if h.captchaService.GetConfig().Enabled {
-		var check bool
-		if data.X != 0 {
-			check = h.captchaService.SlideCheck(data)
-		} else {
-			check = h.captchaService.Check(data)
-		}
-		if !check {
+		if !h.captchaService.SlideCheck(data.Key, data.X) {
 			resp.ERROR(c, "请先完成人机验证")
 			return
 		}

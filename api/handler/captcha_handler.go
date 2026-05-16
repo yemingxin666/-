@@ -25,62 +25,18 @@ func NewCaptchaHandler(app *core.AppServer, s *service.CaptchaService, sysConfig
 	return &CaptchaHandler{App: app, service: s}
 }
 
-// RegisterRoutes 注册路由
 func (h *CaptchaHandler) RegisterRoutes() {
 	group := h.App.Engine.Group("/api/captcha/")
 
-	// 无需授权的接口
-	group.GET("get", h.Get)
-	group.POST("check", h.Check)
 	group.GET("slide/get", h.SlideGet)
 	group.POST("slide/check", h.SlideCheck)
 	group.GET("config", h.GetConfig)
 }
 
 func (h *CaptchaHandler) GetConfig(c *gin.Context) {
-	resp.SUCCESS(c, gin.H{"enabled": h.service.GetConfig().Enabled, "type": h.service.GetConfig().Type})
+	resp.SUCCESS(c, gin.H{"enabled": h.service.GetConfig().Enabled, "type": "slide"})
 }
 
-func (h *CaptchaHandler) Get(c *gin.Context) {
-	if !h.service.GetConfig().Enabled {
-		resp.ERROR(c, "验证码服务未启用")
-		return
-	}
-
-	data, err := h.service.Get()
-	if err != nil {
-		resp.ERROR(c, err.Error())
-		return
-	}
-
-	resp.SUCCESS(c, data)
-}
-
-// Check verify the captcha data
-func (h *CaptchaHandler) Check(c *gin.Context) {
-	if !h.service.GetConfig().Enabled {
-		resp.ERROR(c, "验证码服务未启用")
-		return
-	}
-
-	var data struct {
-		Key  string `json:"key"`
-		Dots string `json:"dots"`
-	}
-	if err := c.ShouldBindJSON(&data); err != nil {
-		resp.ERROR(c, types.InvalidArgs)
-		return
-	}
-
-	if h.service.Check(data) {
-		resp.SUCCESS(c)
-	} else {
-		resp.ERROR(c)
-	}
-
-}
-
-// SlideGet 获取滑动验证图片
 func (h *CaptchaHandler) SlideGet(c *gin.Context) {
 	if !h.service.GetConfig().Enabled {
 		resp.ERROR(c, "验证码服务未启用")
@@ -89,14 +45,14 @@ func (h *CaptchaHandler) SlideGet(c *gin.Context) {
 
 	data, err := h.service.SlideGet()
 	if err != nil {
-		resp.ERROR(c, err.Error())
+		logger.Error(err)
+		resp.ERROR(c, "验证码生成失败，请稍后重试")
 		return
 	}
 
 	resp.SUCCESS(c, data)
 }
 
-// SlideCheck 滑动验证结果校验
 func (h *CaptchaHandler) SlideCheck(c *gin.Context) {
 	if !h.service.GetConfig().Enabled {
 		resp.ERROR(c, "验证码服务未启用")
@@ -112,10 +68,9 @@ func (h *CaptchaHandler) SlideCheck(c *gin.Context) {
 		return
 	}
 
-	if h.service.SlideCheck(data) {
+	if h.service.SlideCheck(data.Key, data.X) {
 		resp.SUCCESS(c)
 	} else {
 		resp.ERROR(c)
 	}
-
 }

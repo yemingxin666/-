@@ -131,9 +131,8 @@ func (h *UserHandler) Register(c *gin.Context) {
 		Password   string `json:"password"`
 		Code       string `json:"code"`
 		InviteCode string `json:"invite_code"`
-		Key        string `json:"key,omitempty"`
-		Dots       string `json:"dots,omitempty"`
-		X          int    `json:"x,omitempty"`
+		Key string `json:"key,omitempty"`
+		X   int    `json:"x,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&data); err != nil {
 		resp.ERROR(c, types.InvalidArgs)
@@ -142,14 +141,8 @@ func (h *UserHandler) Register(c *gin.Context) {
 
 	// 人机验证
 	if h.captchaService.GetConfig().Enabled {
-		var check bool
-		if data.X != 0 {
-			check = h.captchaService.SlideCheck(data)
-		} else {
-			check = h.captchaService.Check(data)
-		}
-		if !check {
-			resp.ERROR(c, "请先完人机验证")
+		if !h.captchaService.SlideCheck(data.Key, data.X) {
+			resp.ERROR(c, "请先完成人机验证")
 			return
 		}
 	}
@@ -229,7 +222,6 @@ func (h *UserHandler) Login(c *gin.Context) {
 		Username string `json:"username"`
 		Password string `json:"password"`
 		Key      string `json:"key,omitempty"`
-		Dots     string `json:"dots,omitempty"`
 		X        int    `json:"x,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&data); err != nil {
@@ -237,14 +229,8 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 	if h.captchaService.GetConfig().Enabled {
-		var check bool
-		if data.X != 0 {
-			check = h.captchaService.SlideCheck(data)
-		} else {
-			check = h.captchaService.Check(data)
-		}
-		if !check {
-			resp.ERROR(c, "请先完人机验证")
+		if !h.captchaService.SlideCheck(data.Key, data.X) {
+			resp.ERROR(c, "请先完成人机验证")
 			return
 		}
 	}

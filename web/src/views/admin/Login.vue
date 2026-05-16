@@ -119,7 +119,6 @@ const doLogin = function (verifyData) {
     username: username.value.trim(),
     password: password.value.trim(),
     key: verifyData.key,
-    dots: verifyData.dots,
     x: verifyData.x,
   })
     .then((res) => {

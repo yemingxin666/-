@@ -317,7 +317,7 @@
         </el-row>
       </div>
     </div>
-    <captcha v-if="enableCaptcha" :type="captchaType" @success="submit" ref="captchaRef" />
+    <captcha v-if="enableCaptcha" @success="submit" ref="captchaRef" />
 
     <reset-pass @hide="showResetPass = false" :show="showResetPass" />
 
@@ -401,7 +401,6 @@ const captchaRef = ref(null)
 const emits = defineEmits(['hide', 'success', 'changeActive'])
 const action = ref('login')
 const enableCaptcha = ref(false)
-const captchaType = ref('')
 const showResetPass = ref(false)
 const store = useSharedStore()
 const loading = ref(false)
@@ -449,7 +448,6 @@ onMounted(() => {
 
   httpGet('/api/captcha/config').then((res) => {
     enableCaptcha.value = res.data['enabled']
-    captchaType.value = res.data['type']
   })
 })
 
@@ -610,7 +608,6 @@ const submitLogin = () => {
 
 const doLogin = (verifyData) => {
   data.value.key = verifyData.key
-  data.value.dots = verifyData.dots
   data.value.x = verifyData.x
   loading.value = true
   httpPost('/api/user/login', data.value)
@@ -666,7 +663,6 @@ const submitRegister = () => {
 
 const doRegister = (verifyData) => {
   data.value.key = verifyData.key
-  data.value.dots = verifyData.dots
   data.value.x = verifyData.x
   data.value.reg_way = activeName.value
   loading.value = true

@@ -13,7 +13,6 @@
         </div>
       </template>
       <slide-captcha
-        v-if="type === 'slide'"
         :bg-img="bgImg"
         :bk-img="bkImg"
         :result="result"
@@ -21,95 +20,28 @@
         @confirm="handleSlideConfirm"
         @hide="show = false"
       />
-
-      <captcha-plus
-        v-else
-        :max-dot="maxDot"
-        :image-base64="imageBase64"
-        :thumb-base64="thumbBase64"
-        width="300"
-        @close="show = false"
-        @refresh="handleRequestCaptCode"
-        @confirm="handleConfirm"
-      />
     </el-dialog>
   </el-container>
 </template>
 
 <script setup>
-import CaptchaPlus from '@/components/CaptchaPlus.vue'
 import SlideCaptcha from '@/components/SlideCaptcha.vue'
 import { showMessageError } from '@/utils/dialog'
 import { httpGet, httpPost } from '@/utils/http'
 import { isMobile } from '@/utils/libs'
-import lodash from 'lodash'
 import { ref } from 'vue'
 
-const props = defineProps({
-  type: {
-    type: String,
-    default: 'slide',
-  },
-})
-
 const show = ref(false)
-const maxDot = ref(5)
-const imageBase64 = ref('')
-const thumbBase64 = ref('')
 const captKey = ref('')
-const dots = ref(null)
 const isMobileInternal = isMobile()
 
 const emits = defineEmits(['success'])
-const handleRequestCaptCode = () => {
-  httpGet('/api/captcha/get')
-    .then((res) => {
-      const data = res.data
-      imageBase64.value = data.image
-      thumbBase64.value = data.thumb
-      captKey.value = data.key
-    })
-    .catch((e) => {
-      showMessageError('获取人机验证数据失败：' + e.message)
-    })
-}
-
-const handleConfirm = (dts) => {
-  if (lodash.size(dts) <= 0) {
-    return showMessageError('请进行人机验证再操作')
-  }
-
-  let dotArr = []
-  lodash.forEach(dts, (dot) => {
-    dotArr.push(dot.x, dot.y)
-  })
-  dots.value = dotArr.join(',')
-  httpPost('/api/captcha/check', {
-    dots: dots.value,
-    key: captKey.value,
-  })
-    .then(() => {
-      // ElMessage.success('人机验证成功')
-      show.value = false
-      emits('success', { key: captKey.value, dots: dots.value })
-    })
-    .catch(() => {
-      showMessageError('人机验证失败')
-      handleRequestCaptCode()
-    })
-}
 
 const loadCaptcha = () => {
   show.value = true
-  // 手机用滑动验证码
-  if (props.type === 'slide') {
-    getSlideCaptcha()
-  } else {
-    handleRequestCaptCode()
-  }
+  getSlideCaptcha()
 }
 
-// 滑动验证码
 const bgImg = ref('')
 const bkImg = ref('')
 const result = ref(0)
@@ -142,7 +74,6 @@ const handleSlideConfirm = (x) => {
     })
 }
 
-// 导出方法以便父组件调用
 defineExpose({
   loadCaptcha,
 })
