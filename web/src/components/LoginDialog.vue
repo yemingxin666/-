@@ -1,6 +1,7 @@
 <template>
   <div class="login-dialog w-full">
-    <div class="login-box" v-if="login">
+    <!-- 登录卡片 -->
+    <div class="login-box" v-if="viewMode === 'login'">
       <custom-tabs v-model="loginActiveName" @tab-click="handleTabClick">
         <!-- 账号密码登录 -->
         <custom-tab-pane name="account" width="48">
@@ -60,7 +61,7 @@
                   size="small"
                   class="ml-2 rounded-md px-2 py-1 transition-colors duration-200"
                   style="color: var(--login-link-color)"
-                  @click="login = false"
+                  @click="viewMode = 'register'"
                   @mouseenter="$event.target.style.background = 'var(--login-link-hover-bg)'"
                   @mouseleave="$event.target.style.background = 'transparent'"
                   >注册</el-button
@@ -70,7 +71,7 @@
                   type="info"
                   class="forget ml-4"
                   size="small"
-                  @click="showResetPass = true"
+                  @click="viewMode = 'reset'"
                   >忘记密码？</el-button
                 >
               </div>
@@ -119,7 +120,8 @@
       </custom-tabs>
     </div>
 
-    <div class="register-box w-full" v-else>
+    <!-- 注册卡片 -->
+    <div class="register-box w-full" v-else-if="viewMode === 'register'">
       <el-form :model="data" class="form space-y-5" v-if="enableRegister">
         <el-tabs v-model="activeName" class="demo-tabs dark:text-white">
           <el-tab-pane label="手机注册" name="mobile" v-if="enableMobile">
@@ -291,7 +293,7 @@
             size="small"
             class="ml-2 rounded-md px-2 py-1 transition-colors duration-200"
             style="color: var(--login-link-color)"
-            @click="login = true"
+            @click="viewMode = 'login'"
             @mouseenter="$event.target.style.background = 'var(--login-link-hover-bg)'"
             @mouseleave="$event.target.style.background = 'transparent'"
             >登录</el-button
@@ -317,9 +319,143 @@
         </el-row>
       </div>
     </div>
-    <captcha v-if="enableCaptcha" @success="submit" ref="captchaRef" />
 
-    <reset-pass @hide="showResetPass = false" :show="showResetPass" />
+    <!-- 忘记密码卡片 -->
+    <div class="reset-box w-full" v-else-if="viewMode === 'reset'">
+      <el-form :model="resetForm" class="form space-y-5">
+        <el-tabs v-model="resetForm.type" class="demo-tabs dark:text-white">
+          <el-tab-pane label="手机号验证" name="mobile">
+            <div class="block">
+              <el-input
+                v-model="resetForm.mobile"
+                size="large"
+                placeholder="手机号码"
+                maxlength="11"
+                autocomplete="off"
+              >
+                <template #prefix>
+                  <el-icon><Iphone /></el-icon>
+                </template>
+              </el-input>
+            </div>
+            <div class="block mt-4">
+              <el-row :gutter="10">
+                <el-col :span="12">
+                  <el-input
+                    v-model="resetForm.code"
+                    maxlength="6"
+                    size="large"
+                    placeholder="验证码"
+                    autocomplete="off"
+                  >
+                    <template #prefix>
+                      <el-icon><Checked /></el-icon>
+                    </template>
+                  </el-input>
+                </el-col>
+                <el-col :span="12">
+                  <send-msg size="large" :receiver="resetForm.mobile" type="mobile" scene="reset_pass" />
+                </el-col>
+              </el-row>
+            </div>
+          </el-tab-pane>
+
+          <el-tab-pane label="邮箱验证" name="email">
+            <div class="block">
+              <el-input
+                v-model="resetForm.email"
+                size="large"
+                placeholder="邮箱地址"
+                autocomplete="off"
+              >
+                <template #prefix>
+                  <el-icon><Message /></el-icon>
+                </template>
+              </el-input>
+            </div>
+            <div class="block mt-4">
+              <el-row :gutter="10">
+                <el-col :span="12">
+                  <el-input
+                    v-model="resetForm.code"
+                    maxlength="6"
+                    size="large"
+                    placeholder="验证码"
+                    autocomplete="off"
+                  >
+                    <template #prefix>
+                      <el-icon><Checked /></el-icon>
+                    </template>
+                  </el-input>
+                </el-col>
+                <el-col :span="12">
+                  <send-msg size="large" :receiver="resetForm.email" type="email" scene="reset_pass" />
+                </el-col>
+              </el-row>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+
+        <div class="block">
+          <el-input
+            v-model="resetForm.password"
+            type="password"
+            placeholder="请输入新密码(8-16位)"
+            maxlength="16"
+            size="large"
+            show-password
+            autocomplete="off"
+          >
+            <template #prefix>
+              <el-icon><Lock /></el-icon>
+            </template>
+          </el-input>
+        </div>
+
+        <div class="block">
+          <el-input
+            v-model="resetForm.repass"
+            type="password"
+            placeholder="重复新密码(8-16位)"
+            maxlength="16"
+            size="large"
+            show-password
+            autocomplete="off"
+          >
+            <template #prefix>
+              <el-icon><Lock /></el-icon>
+            </template>
+          </el-input>
+        </div>
+
+        <div class="w-full">
+          <button
+            class="w-full h-12 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 shadow-md flex items-center justify-center"
+            @click="submitResetPass"
+            type="button"
+          >
+            {{ resetLoading ? '重置中...' : '重置密码' }}
+          </button>
+        </div>
+
+        <div
+          class="text text-sm flex justify-center items-center w-full pt-3"
+          style="color: var(--login-text-color)"
+        >
+          想起密码了？
+          <el-button
+            size="small"
+            class="ml-2 rounded-md px-2 py-1 transition-colors duration-200"
+            style="color: var(--login-link-color)"
+            @click="viewMode = 'login'"
+            @mouseenter="$event.target.style.background = 'var(--login-link-hover-bg)'"
+            @mouseleave="$event.target.style.background = 'transparent'"
+          >返回登录</el-button>
+        </div>
+      </el-form>
+    </div>
+
+    <captcha v-if="enableCaptcha" @success="submit" ref="captchaRef" />
 
     <el-dialog v-model="showAgreement" title="用户协议" :append-to-body="true">
       <div class="prose" v-html="agreementHtml"></div>
@@ -333,7 +469,6 @@
 
 <script setup>
 import Captcha from '@/components/Captcha.vue'
-import ResetPass from '@/components/ResetPass.vue'
 import SendMsg from '@/components/SendMsg.vue'
 import CustomTabPane from '@/components/ui/CustomTabPane.vue'
 import CustomTabs from '@/components/ui/CustomTabs.vue'
@@ -369,8 +504,8 @@ watch(
   }
 )
 
-const login = ref(props.active === 'login')
-const loginActiveName = ref('account') // 新增：登录标签页激活状态
+const viewMode = ref(props.active === 'register' ? 'register' : 'login')
+const loginActiveName = ref('account')
 const data = ref({
   username: import.meta.env.VITE_USER,
   password: import.meta.env.VITE_PASS,
@@ -380,6 +515,17 @@ const data = ref({
   code: '',
   invite_code: props.inviteCode,
 })
+
+// 忘记密码表单（独立数据，避免与登录/注册表单互相干扰）
+const resetForm = ref({
+  mobile: '',
+  email: '',
+  type: 'mobile',
+  code: '',
+  password: '',
+  repass: '',
+})
+const resetLoading = ref(false)
 
 // 微信登录相关变量
 const wechatLoginQRCode = ref('')
@@ -401,7 +547,6 @@ const captchaRef = ref(null)
 const emits = defineEmits(['hide', 'success', 'changeActive'])
 const action = ref('login')
 const enableCaptcha = ref(false)
-const showResetPass = ref(false)
 const store = useSharedStore()
 const loading = ref(false)
 const agreeChecked = ref(false)
@@ -411,7 +556,7 @@ const agreementHtml = ref('')
 const privacyHtml = ref('')
 
 watch(
-  () => login.value,
+  () => viewMode.value,
   (newValue) => {
     emits('changeActive', newValue)
   }
@@ -456,7 +601,6 @@ watch(loginActiveName, (newValue) => {
   if (newValue === 'wechat') {
     getWxLoginURL()
   } else {
-    // 其他登录方式，清除定时器
     if (pollingTimer.value) {
       clearInterval(pollingTimer.value)
     }
@@ -467,11 +611,9 @@ watch(loginActiveName, (newValue) => {
 })
 
 const handleTabClick = (tab) => {
-  // CustomTabs组件传递的是tab对象，包含paneName属性
   if (tab.paneName === 'wechat') {
     getWxLoginURL()
   } else {
-    // 其他登录方式，清除定时器
     if (pollingTimer.value) {
       clearInterval(pollingTimer.value)
     }
@@ -489,20 +631,17 @@ const submit = (verifyData) => {
   }
 }
 
-// 获取微信登录 URL
 const getWxLoginURL = () => {
   wechatLoginQRCode.value = ''
   qrcodeLoading.value = true
   qrcodeExpired.value = false
 
-  // 清除可能存在的旧定时器
   if (qrcodeTimer.value) {
     clearTimeout(qrcodeTimer.value)
   }
 
   httpGet('/api/user/login/qrcode')
     .then((res) => {
-      // 生成二维码
       QRCode.toDataURL(res.data.url, { width: 200, height: 200, margin: 2 }, (error, url) => {
         if (error) {
           console.error(error)
@@ -511,17 +650,14 @@ const getWxLoginURL = () => {
         }
       })
       wechatLoginState.value = res.data.state
-      // 开始轮询状态
       startPolling()
 
-      // 设置1分钟后二维码过期
       qrcodeTimer.value = setTimeout(() => {
         qrcodeExpired.value = true
-        // 停止轮询
         if (pollingTimer.value) {
           clearInterval(pollingTimer.value)
         }
-      }, 60 * 1000) // 1分钟过期
+      }, 60 * 1000)
     })
     .catch((e) => {
       ElMessage.error('获取微信登录 URL 失败，' + e.message)
@@ -531,19 +667,16 @@ const getWxLoginURL = () => {
     })
 }
 
-// 开始轮询
 const startPolling = () => {
-  // 清除可能存在的旧定时器
   if (pollingTimer.value) {
     clearInterval(pollingTimer.value)
   }
 
   pollingTimer.value = setInterval(() => {
     checkLoginStatus()
-  }, 1000) // 每1秒检查一次
+  }, 1000)
 }
 
-// 检查登录状态
 const checkLoginStatus = () => {
   if (!wechatLoginState.value) return
 
@@ -553,7 +686,6 @@ const checkLoginStatus = () => {
 
       switch (status) {
         case 'success':
-          // 登录成功
           clearInterval(pollingTimer.value)
           clearTimeout(qrcodeTimer.value)
           setUserToken(res.data.token)
@@ -564,18 +696,15 @@ const checkLoginStatus = () => {
           break
 
         case 'expired':
-          // 二维码过期
           clearInterval(pollingTimer.value)
           clearTimeout(qrcodeTimer.value)
           qrcodeExpired.value = true
           break
 
         case 'pending':
-          // 继续轮询
           break
 
         default:
-          // 其他错误情况
           clearInterval(pollingTimer.value)
           clearTimeout(qrcodeTimer.value)
           ElMessage.error('登录失败，请重试')
@@ -583,7 +712,6 @@ const checkLoginStatus = () => {
       }
     })
     .catch((e) => {
-      // 发生错误时显示过期状态
       clearInterval(pollingTimer.value)
       clearTimeout(qrcodeTimer.value)
       qrcodeExpired.value = true
@@ -683,6 +811,44 @@ const doRegister = (verifyData) => {
     })
     .finally(() => {
       loading.value = false
+    })
+}
+
+// 忘记密码操作
+const submitResetPass = () => {
+  if (resetForm.value.type === 'mobile' && !resetForm.value.mobile) {
+    return ElMessage.error('请输入手机号')
+  }
+  if (resetForm.value.type === 'email' && !resetForm.value.email) {
+    return ElMessage.error('请输入邮箱地址')
+  }
+  if (resetForm.value.code === '') {
+    return ElMessage.error('请输入验证码')
+  }
+  if (resetForm.value.password.length < 8) {
+    return ElMessage.error('密码长度必须大于8位')
+  }
+  if (resetForm.value.repass !== resetForm.value.password) {
+    return ElMessage.error('两次输入密码不一致')
+  }
+
+  resetLoading.value = true
+  httpPost('/api/user/resetPass', resetForm.value)
+    .then(() => {
+      ElMessage.success({
+        message: '重置密码成功，请登录',
+        duration: 1500,
+        onClose: () => {
+          viewMode.value = 'login'
+        },
+      })
+      resetForm.value = { mobile: '', email: '', type: 'mobile', code: '', password: '', repass: '' }
+    })
+    .catch((e) => {
+      ElMessage.error('重置密码失败：' + e.message)
+    })
+    .finally(() => {
+      resetLoading.value = false
     })
 }
 

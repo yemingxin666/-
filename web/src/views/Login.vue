@@ -51,10 +51,16 @@ const inviteCode = ref(router.currentRoute.value.query.invite_code || '')
 const token = ref(router.currentRoute.value.query.token || '')
 const isRegister = ref(router.currentRoute.value.path === '/register')
 const active = ref(isRegister.value ? 'register' : 'login')
-const title = computed(() => (isRegister.value ? '用户注册' : '用户登录'))
-const subtitle = computed(() =>
-  isRegister.value ? '创建您的账户以开始使用服务' : '登录您的账户以继续使用服务'
-)
+const currentView = ref(active.value)
+
+const titleMap = { login: '用户登录', register: '用户注册', reset: '忘记密码' }
+const subtitleMap = {
+  login: '登录您的账户以继续使用服务',
+  register: '创建您的账户以开始使用服务',
+  reset: '通过手机号或邮箱验证重置您的密码',
+}
+const title = computed(() => titleMap[currentView.value] || titleMap.login)
+const subtitle = computed(() => subtitleMap[currentView.value] || subtitleMap.login)
 
 const handleRegisterSuccess = () => {
   if (isMobile()) {
@@ -65,13 +71,10 @@ const handleRegisterSuccess = () => {
 }
 
 const handleChangeActive = (newValue) => {
-  isRegister.value = !newValue
+  currentView.value = newValue
 }
 
 onMounted(() => {
-  if (loginDialogRef.value) {
-    loginDialogRef.value.login = !isRegister
-  }
   if (token.value) {
     setUserToken(token.value)
     handleRegisterSuccess()
