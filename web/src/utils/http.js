@@ -38,11 +38,19 @@ axios.defaults.withCredentials = true
 //axios.defaults.headers.post['Content-Type'] = 'application/json'
 
 // HTTP拦截器
+const MAX_TOKEN_LENGTH = 4096
+
+function safeToken(token) {
+  if (!token || typeof token !== 'string' || token.length > MAX_TOKEN_LENGTH) {
+    return ''
+  }
+  return token
+}
+
 axios.interceptors.request.use(
   (config) => {
-    // set token
-    config.headers['Authorization'] = getUserToken()
-    config.headers['Admin-Authorization'] = getAdminToken()
+    config.headers['Authorization'] = safeToken(getUserToken())
+    config.headers['Admin-Authorization'] = safeToken(getAdminToken())
     return config
   },
   (error) => {

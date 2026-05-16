@@ -9,27 +9,30 @@ package handler
 
 import (
 	"geekai/core"
+	"geekai/core/middleware"
 	"geekai/core/types"
 	"geekai/service"
 	"geekai/utils/resp"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 )
 
 type CaptchaHandler struct {
 	App     *core.AppServer
+	redis   *redis.Client
 	service *service.CaptchaService
 }
 
-func NewCaptchaHandler(app *core.AppServer, s *service.CaptchaService, sysConfig *types.SystemConfig) *CaptchaHandler {
-	return &CaptchaHandler{App: app, service: s}
+func NewCaptchaHandler(app *core.AppServer, s *service.CaptchaService, rdb *redis.Client, sysConfig *types.SystemConfig) *CaptchaHandler {
+	return &CaptchaHandler{App: app, service: s, redis: rdb}
 }
 
 func (h *CaptchaHandler) RegisterRoutes() {
 	group := h.App.Engine.Group("/api/captcha/")
 
-	group.GET("slide/get", h.SlideGet)
-	group.POST("slide/check", h.SlideCheck)
+	group.GET("slide/get", middleware.RateLimitEvery(h.redis, 2*time.Second), h.SlideGet)
 	group.GET("config", h.GetConfig)
 }
 
@@ -53,24 +56,3 @@ func (h *CaptchaHandler) SlideGet(c *gin.Context) {
 	resp.SUCCESS(c, data)
 }
 
-func (h *CaptchaHandler) SlideCheck(c *gin.Context) {
-	if !h.service.GetConfig().Enabled {
-		resp.ERROR(c, "验证码服务未启用")
-		return
-	}
-
-	var data struct {
-		Key string `json:"key"`
-		X   int    `json:"x"`
-	}
-	if err := c.ShouldBindJSON(&data); err != nil {
-		resp.ERROR(c, types.InvalidArgs)
-		return
-	}
-
-	if h.service.SlideCheck(data.Key, data.X) {
-		resp.SUCCESS(c)
-	} else {
-		resp.ERROR(c)
-	}
-}

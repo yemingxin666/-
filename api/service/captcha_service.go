@@ -86,10 +86,11 @@ func (s *CaptchaService) SlideGet() (any, error) {
 		return nil, fmt.Errorf("generate slide captcha data is empty")
 	}
 
-	bgImg, err := captData.GetMasterImage().ToBase64Data()
+	bgBase64, err := captData.GetMasterImage().ToBase64Data()
 	if err != nil {
 		return nil, fmt.Errorf("encode slide captcha background: %w", err)
 	}
+	bgImg := "data:image/jpeg;base64," + bgBase64
 
 	// 将 tile 图合成到全高透明画布上，使前端 top:0 时能正确显示
 	tileImg := captData.GetTileImage().Get()

@@ -127,6 +127,7 @@ func main() {
 		fx.Provide(handler.NewUserHandler),
 		fx.Provide(handler.NewNetHandler),
 		fx.Provide(handler.NewCaptchaHandler),
+		fx.Provide(handler.NewSmsHandler),
 		fx.Provide(handler.NewPaymentHandler),
 		fx.Provide(handler.NewOrderHandler),
 		fx.Provide(handler.NewProductHandler),
@@ -192,6 +193,9 @@ func main() {
 			h.RegisterRoutes()
 		}),
 		fx.Invoke(func(s *core.AppServer, h *handler.CaptchaHandler) {
+			h.RegisterRoutes()
+		}),
+		fx.Invoke(func(s *core.AppServer, h *handler.SmsHandler) {
 			h.RegisterRoutes()
 		}),
 		fx.Invoke(func(s *core.AppServer, h *handler.ConfigHandler) {

@@ -10,3 +10,4 @@
 | 2026-05-10 | 7955b1f0 | 01d81b1c | feat(ecom): 主图/详情/克隆页生图卡支持编辑功能并替换重新生成 | ImageTaskItem 新增 asset_no; clone 合成 items; useEcomEdit 抽离; 留页 + 通知跳转 | - | medium |
 | 2026-05-10 | 64c8c521 | 7278918a | fix(ecom): 历史图库单图删除误删整任务的多张图 | 新增 asset 软删接口; 空任务级联清理; 兼容旧数据回退 | 单图删除→整任务消失 | medium |
 | 2026-05-11 | 1354e0c6 | fafc2a87 | feat(ecom): 优化图片预览交互并隐藏历史图库提示词 | hide-on-click-modal; blur 移除焦点; PromptJSON nil 屏蔽 | - | low |
+| 2026-05-16 | 4492683b | - | fix(captcha): 修复验证码key被双重消费导致业务接口验证失败 | 移除前端预校验改为业务接口一次性验证; slide/get 添加限流 | key双重消费; SmsHandler未注册404; bgImg缺data URI前缀 | medium |

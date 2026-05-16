@@ -27,7 +27,7 @@
 <script setup>
 import SlideCaptcha from '@/components/SlideCaptcha.vue'
 import { showMessageError } from '@/utils/dialog'
-import { httpGet, httpPost } from '@/utils/http'
+import { httpGet } from '@/utils/http'
 import { isMobile } from '@/utils/libs'
 import { ref } from 'vue'
 
@@ -60,18 +60,9 @@ const getSlideCaptcha = () => {
 }
 
 const handleSlideConfirm = (x) => {
-  httpPost('/api/captcha/slide/check', {
-    key: captKey.value,
-    x: x,
-  })
-    .then(() => {
-      result.value = 1
-      show.value = false
-      emits('success', { key: captKey.value, x: x })
-    })
-    .catch(() => {
-      result.value = 2
-    })
+  result.value = 1
+  show.value = false
+  emits('success', { key: captKey.value, x: Math.floor(x) })
 }
 
 defineExpose({

@@ -121,7 +121,7 @@ const doSendMsg = (data) => {
         startCooldown(60)
       } else {
         canSend.value = true
-        ElMessage.error('验证码发送失败，请稍后重试')
+        ElMessage.error(e.message || '验证码发送失败，请稍后重试')
       }
     })
     .finally(() => {
