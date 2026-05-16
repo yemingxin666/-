@@ -72,7 +72,7 @@ func (h *UserHandler) RegisterRoutes() {
 
 	// 公开接口，不需要授权
 	group.POST("register", h.Register)
-	group.POST("login", h.Login)
+	group.POST("login", middleware.RateLimitEvery(h.redis, 1*time.Second), h.Login)
 	group.POST("resetPass", h.ResetPass)
 	group.GET("login/qrcode", h.GetWxLoginQRCode)
 	group.POST("login/callback", h.WxLoginCallback)
@@ -216,6 +216,18 @@ func (h *UserHandler) Register(c *gin.Context) {
 	resp.SUCCESS(c, gin.H{"token": token, "user_id": user.Id, "username": user.Username})
 }
 
+const (
+	loginMaxFailAttempts = 5
+	loginLockDuration    = 15 * time.Minute
+)
+
+func loginFailKey(username, ip string) string {
+	if len(username) > 64 {
+		username = username[:64]
+	}
+	return fmt.Sprintf("login:fail:%s:%s", utils.Md5(username), ip)
+}
+
 // Login 用户登录
 func (h *UserHandler) Login(c *gin.Context) {
 	var data struct {
@@ -228,6 +240,20 @@ func (h *UserHandler) Login(c *gin.Context) {
 		resp.ERROR(c, types.InvalidArgs)
 		return
 	}
+
+	// 检查是否被锁定
+	failKey := loginFailKey(data.Username, c.ClientIP())
+	failCount, _ := h.redis.Get(c, failKey).Int()
+	if failCount >= loginMaxFailAttempts {
+		ttl, _ := h.redis.TTL(c, failKey).Result()
+		remaining := int(ttl.Minutes()) + 1
+		if remaining < 1 {
+			remaining = 1
+		}
+		resp.ERROR(c, fmt.Sprintf("登录失败次数过多，请%d分钟后重试", remaining))
+		return
+	}
+
 	if h.captchaService.GetConfig().Enabled {
 		if !h.captchaService.SlideCheck(data.Key, data.X) {
 			resp.ERROR(c, "请先完成人机验证")
@@ -238,12 +264,14 @@ func (h *UserHandler) Login(c *gin.Context) {
 	var user model.User
 	res := h.DB.Where("username = ?", data.Username).First(&user)
 	if res.Error != nil {
-		resp.ERROR(c, "用户名不存在")
+		incrLoginFail(h.redis, c, failKey, loginLockDuration)
+		resp.ERROR(c, "用户名或密码错误")
 		return
 	}
 
 	password := utils.GenPassword(data.Password, user.Salt)
 	if password != user.Password {
+		incrLoginFail(h.redis, c, failKey, loginLockDuration)
 		resp.ERROR(c, "用户名或密码错误")
 		return
 	}
@@ -253,6 +281,9 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// 登录成功，清除失败计数
+	_ = h.redis.Del(c, failKey).Err()
+
 	token, err := h.doLogin(&user, c.ClientIP())
 	if err != nil {
 		resp.ERROR(c, err.Error())
@@ -260,6 +291,13 @@ func (h *UserHandler) Login(c *gin.Context) {
 	}
 
 	resp.SUCCESS(c, gin.H{"token": token, "user_id": user.Id, "username": user.Username})
+}
+
+func incrLoginFail(rdb *redis.Client, c *gin.Context, key string, ttl time.Duration) {
+	pipe := rdb.Pipeline()
+	pipe.Incr(c, key)
+	pipe.Expire(c, key, ttl)
+	_, _ = pipe.Exec(c)
 }
 
 // Logout 注 销

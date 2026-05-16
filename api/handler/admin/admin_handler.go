@@ -52,7 +52,7 @@ func (h *ManagerHandler) RegisterRoutes() {
 	group := h.App.Engine.Group("/api/admin/")
 
 	// 公开接口，不需要授权
-	group.POST("login", h.Login)
+	group.POST("login", middleware.RateLimitEvery(h.redis, 1*time.Second), h.Login)
 	group.GET("logout", h.Logout)
 
 	// 需要管理员授权的接口
@@ -65,6 +65,18 @@ func (h *ManagerHandler) RegisterRoutes() {
 		group.GET("remove", h.Remove)
 		group.POST("resetPass", h.ResetPass)
 	}
+}
+
+const (
+	adminLoginMaxFail = 5
+	adminLoginLockTTL = 15 * time.Minute
+)
+
+func adminLoginFailKey(username, ip string) string {
+	if len(username) > 64 {
+		username = username[:64]
+	}
+	return fmt.Sprintf("login:fail:admin:%s:%s", utils.Md5(username), ip)
 }
 
 // Login 登录
@@ -81,14 +93,28 @@ func (h *ManagerHandler) Login(c *gin.Context) {
 		return
 	}
 
+	failKey := adminLoginFailKey(data.Username, c.ClientIP())
+	failCount, _ := h.redis.Get(c, failKey).Int()
+	if failCount >= adminLoginMaxFail {
+		ttl, _ := h.redis.TTL(c, failKey).Result()
+		remaining := int(ttl.Minutes()) + 1
+		if remaining < 1 {
+			remaining = 1
+		}
+		resp.ERROR(c, fmt.Sprintf("登录失败次数过多，请%d分钟后重试", remaining))
+		return
+	}
+
 	var manager model.AdminUser
 	res := h.DB.Model(&model.AdminUser{}).Where("username = ?", data.Username).First(&manager)
 	if res.Error != nil {
-		resp.ERROR(c, "请检查用户名或者密码是否填写正确")
+		incrLoginFail(h.redis, c, failKey, adminLoginLockTTL)
+		resp.ERROR(c, "用户名或密码错误")
 		return
 	}
 	password := utils.GenPassword(data.Password, manager.Salt)
 	if password != manager.Password {
+		incrLoginFail(h.redis, c, failKey, adminLoginLockTTL)
 		resp.ERROR(c, "用户名或密码错误")
 		return
 	}
@@ -98,6 +124,9 @@ func (h *ManagerHandler) Login(c *gin.Context) {
 		resp.ERROR(c, "该用户已被禁止登录，请联系超级管理员")
 		return
 	}
+
+	// 登录成功，清除失败计数
+	_ = h.redis.Del(c, failKey).Err()
 
 	// 创建 token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -130,6 +159,13 @@ func (h *ManagerHandler) Login(c *gin.Context) {
 	}
 
 	resp.SUCCESS(c, result)
+}
+
+func incrLoginFail(rdb *redis.Client, c *gin.Context, key string, ttl time.Duration) {
+	pipe := rdb.Pipeline()
+	pipe.Incr(c, key)
+	pipe.Expire(c, key, ttl)
+	_, _ = pipe.Exec(c)
 }
 
 // Logout 注销
