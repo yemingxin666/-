@@ -18,5 +18,5 @@ type AdminUser struct {
 
 // TableName 表名
 func (m *AdminUser) TableName() string {
-	return "geekai_admin_users"
+	return "puningai_admin_users"
 }

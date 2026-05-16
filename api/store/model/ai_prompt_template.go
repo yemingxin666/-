@@ -22,7 +22,7 @@ type AiPromptTemplate struct {
 }
 
 func (m *AiPromptTemplate) TableName() string {
-	return "geekai_ai_prompt_templates"
+	return "puningai_ai_prompt_templates"
 }
 
 // 模板状态常量
@@ -42,7 +42,7 @@ type AiModelPriceConfig struct {
 }
 
 func (m *AiModelPriceConfig) TableName() string {
-	return "geekai_ai_model_price_config"
+	return "puningai_ai_model_price_config"
 }
 
 // AiModel AI 模型配置
@@ -72,7 +72,7 @@ type AiModel struct {
 }
 
 func (m *AiModel) TableName() string {
-	return "geekai_ai_models"
+	return "puningai_ai_models"
 }
 
 type EndpointConfig struct {

@@ -25,7 +25,7 @@ func NewGormConfig() *gorm.Config {
 	return &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 		NamingStrategy: schema.NamingStrategy{
-			TablePrefix:   "geekai_", // 设置表前缀
+			TablePrefix:   "puningai_", // 设置表前缀
 			SingularTable: false,     // 使用单数表名形式
 		},
 	}
@@ -50,31 +50,18 @@ func NewMysql(config *gorm.Config, appConfig *types.AppConfig) (*gorm.DB, error)
 
 	// 重命名数据表
 	tableRenames := map[string]string{
-		"chatgpt_chat_roles":      "geekai_chat_roles",
-		"chatgpt_admin_users":     "geekai_admin_users",
-		"chatgpt_api_keys":        "geekai_api_keys",
-		"chatgpt_app_types":       "geekai_app_types",
-		"chatgpt_chat_history":    "geekai_chat_history",
-		"chatgpt_chat_items":      "geekai_chat_items",
-		"chatgpt_chat_models":     "geekai_chat_models",
-		"chatgpt_users":           "geekai_users",
-		"chatgpt_orders":          "geekai_orders",
-		"chatgpt_products":        "geekai_products",
-		"chatgpt_configs":         "geekai_configs",
-		"chatgpt_sd_jobs":         "geekai_sd_jobs",
-		"chatgpt_mj_jobs":         "geekai_mj_jobs",
-		"chatgpt_suno_jobs":       "geekai_suno_jobs",
-		"chatgpt_dall_jobs":       "geekai_dall_jobs",
-		"chatgpt_video_jobs":      "geekai_video_jobs",
-		"chatgpt_jimeng_jobs":     "geekai_jimeng_jobs",
-		"chatgpt_files":           "geekai_files",
-		"chatgpt_menus":           "geekai_menus",
-		"chatgpt_functions":       "geekai_functions",
-		"chatgpt_invite_codes":    "geekai_invite_codes",
-		"chatgpt_invite_logs":     "geekai_invite_logs",
-		"chatgpt_redeems":         "geekai_redeems",
-		"chatgpt_power_logs":      "geekai_power_logs",
-		"chatgpt_user_login_logs": "geekai_user_login_logs",
+		"geekai_admin_users":     "puningai_admin_users",
+		"geekai_users":           "puningai_users",
+		"geekai_orders":          "puningai_orders",
+		"geekai_products":        "puningai_products",
+		"geekai_configs":         "puningai_configs",
+		"geekai_files":           "puningai_files",
+		"geekai_menus":           "puningai_menus",
+		"geekai_invite_codes":    "puningai_invite_codes",
+		"geekai_invite_logs":     "puningai_invite_logs",
+		"geekai_redeems":         "puningai_redeems",
+		"geekai_power_logs":      "puningai_power_logs",
+		"geekai_user_login_logs": "puningai_user_login_logs",
 	}
 
 	// 执行重命名操作

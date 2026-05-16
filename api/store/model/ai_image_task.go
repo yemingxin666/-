@@ -34,7 +34,7 @@ type AiImageTask struct {
 }
 
 func (m *AiImageTask) TableName() string {
-	return "geekai_ai_image_tasks"
+	return "puningai_ai_image_tasks"
 }
 
 // Task 状态常量

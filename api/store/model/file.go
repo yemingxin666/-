@@ -14,5 +14,5 @@ type File struct {
 }
 
 func (m *File) TableName() string {
-	return "geekai_files"
+	return "puningai_files"
 }

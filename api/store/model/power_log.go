@@ -20,5 +20,5 @@ type PowerLog struct {
 }
 
 func (m *PowerLog) TableName() string {
-	return "geekai_power_logs"
+	return "puningai_power_logs"
 }

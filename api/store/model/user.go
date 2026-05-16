@@ -16,9 +16,6 @@ type User struct {
 	Power       int       `gorm:"column:power;type:int;default:0;comment:剩余算力" json:"power"`
 	ExpiredTime int64     `gorm:"column:expired_time;type:int;not null;comment:用户过期时间" json:"expired_time"`
 	Status      bool      `gorm:"column:status;type:tinyint(1);not null;comment:当前状态" json:"status"`
-	ChatConfig  string    `gorm:"column:chat_config_json;type:text;default:null;comment:聊天配置json" json:"chat_config"`
-	ChatRoles   string    `gorm:"column:chat_roles_json;type:text;default:null;comment:聊天角色 json" json:"chat_roles"`
-	ChatModels  string    `gorm:"column:chat_models_json;type:text;default:null;comment:AI模型 json" json:"chat_models"`
 	LastLoginAt int64     `gorm:"column:last_login_at;type:int;not null;comment:最后登录时间" json:"last_login_at"`
 	Vip         bool      `gorm:"column:vip;type:tinyint(1);not null;default:0;comment:是否会员" json:"vip"`
 	LastLoginIp string    `gorm:"column:last_login_ip;type:char(16);not null;comment:最后登录 IP" json:"last_login_ip"`
@@ -29,5 +26,5 @@ type User struct {
 }
 
 func (m *User) TableName() string {
-	return "geekai_users"
+	return "puningai_users"
 }

@@ -18,7 +18,7 @@ type AiPlatformConfig struct {
 }
 
 func (m *AiPlatformConfig) TableName() string {
-	return "geekai_ai_platform_configs"
+	return "puningai_ai_platform_configs"
 }
 
 const (

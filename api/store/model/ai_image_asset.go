@@ -21,7 +21,7 @@ type AiImageAsset struct {
 }
 
 func (m *AiImageAsset) TableName() string {
-	return "geekai_ai_image_assets"
+	return "puningai_ai_image_assets"
 }
 
 // Asset 类型常量

@@ -12,5 +12,5 @@ type InviteCode struct {
 }
 
 func (m *InviteCode) TableName() string {
-	return "geekai_invite_codes"
+	return "puningai_invite_codes"
 }
