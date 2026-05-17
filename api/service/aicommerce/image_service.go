@@ -257,9 +257,11 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 		UpdatedAt:  time.Now(),
 	}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := s.deductCreditTx(tx, userID, creditCost); err != nil {
-			return fmt.Errorf("积分不足: %w", err)
+		balance, err := s.deductCreditTx(tx, userID, creditCost)
+		if err != nil {
+			return fmt.Errorf("算力不足: %w", err)
 		}
+		task.BalanceAfter = balance
 		return tx.Create(task).Error
 	}); err != nil {
 		return nil, err
@@ -359,9 +361,11 @@ func (s *ImageService) SubmitEditTask(ctx context.Context, userID uint, req Edit
 		UpdatedAt:  time.Now(),
 	}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := s.deductCreditTx(tx, userID, creditCost); err != nil {
-			return fmt.Errorf("积分不足: %w", err)
+		balance, err := s.deductCreditTx(tx, userID, creditCost)
+		if err != nil {
+			return fmt.Errorf("算力不足: %w", err)
 		}
+		task.BalanceAfter = balance
 		return tx.Create(task).Error
 	}); err != nil {
 		return nil, err
@@ -704,7 +708,7 @@ func (s *ImageService) Copywrite(ctx context.Context, userID uint, req Copywrite
 		creditCost = 8
 	}
 	if err = s.deductCredit(ctx, userID, creditCost); err != nil {
-		return "", nil, fmt.Errorf("积分不足: %w", err)
+		return "", nil, fmt.Errorf("算力不足: %w", err)
 	}
 
 	defer func() {
@@ -905,20 +909,24 @@ func (s *ImageService) deductCredit(ctx context.Context, userID uint, amount int
 	return nil
 }
 
-func (s *ImageService) deductCreditTx(tx *gorm.DB, userID uint, amount int) error {
+func (s *ImageService) deductCreditTx(tx *gorm.DB, userID uint, amount int) (balanceAfter int, err error) {
 	if amount <= 0 {
-		return fmt.Errorf("invalid credit amount: %d", amount)
+		return 0, fmt.Errorf("invalid credit amount: %d", amount)
 	}
 	result := tx.Model(&model.User{}).
 		Where("id = ? AND power >= ?", userID, amount).
 		UpdateColumn("power", gorm.Expr("power - ?", amount))
 	if result.Error != nil {
-		return result.Error
+		return 0, result.Error
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("算力不足")
+		return 0, fmt.Errorf("算力不足")
 	}
-	return nil
+	var user model.User
+	if err := tx.Select("power").Where("id = ?", userID).First(&user).Error; err != nil {
+		return 0, err
+	}
+	return user.Power, nil
 }
 
 func (s *ImageService) refundCredit(_ context.Context, userID uint, amount int) error {

@@ -535,8 +535,8 @@ export const useEcomGalleryStore = defineStore('ecomGallery', () => {
       const params = { page: page.value, page_size: pageSize.value }
       if (moduleFilter.value) params.module = moduleFilter.value
       const res = await httpGet('/api/ai-commerce/gallery', params)
-      items.value = res.data.items
-      total.value = res.data.total
+      items.value = res.data.items || []
+      total.value = res.data.total || 0
     } finally {
       if (!silent) loading.value = false
     }

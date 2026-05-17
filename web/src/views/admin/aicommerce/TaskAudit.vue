@@ -32,6 +32,7 @@
       <el-table-column prop="image_type" label="图片类型" width="120" />
       <el-table-column prop="model" label="模型" width="100" />
       <el-table-column prop="credit_cost" label="积分消耗" width="90" />
+      <el-table-column prop="balance_after" label="余额" width="80" />
       <el-table-column prop="status" label="状态" width="90">
         <template #default="scope">
           <el-tag :type="statusTagType(scope.row.status)">{{ statusLabel(scope.row.status) }}</el-tag>

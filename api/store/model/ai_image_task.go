@@ -21,6 +21,7 @@ type AiImageTask struct {
 	Progress      int        `gorm:"column:progress;type:tinyint;not null;default:0" json:"progress"`
 	Model         string     `gorm:"column:model;type:varchar(64)" json:"model"`
 	CreditCost    int        `gorm:"column:credit_cost;type:int" json:"credit_cost"`
+	BalanceAfter  int        `gorm:"column:balance_after;type:int;default:0;comment:扣费后余额" json:"balance_after"`
 	CreditTxId    string     `gorm:"column:credit_tx_id;type:varchar(64)" json:"credit_tx_id"`
 	Provider      string     `gorm:"column:provider;type:varchar(32)" json:"provider"`
 	ProviderJobId string     `gorm:"column:provider_job_id;type:varchar(128)" json:"provider_job_id"`

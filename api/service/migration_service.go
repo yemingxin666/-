@@ -208,6 +208,10 @@ func (s *MigrationService) TableMigration() {
 		logger.Errorf("migrate ai models failed: %v", err)
 		return
 	}
+	if err := s.db.AutoMigrate(&model.AiImageTask{}); err != nil {
+		logger.Errorf("migrate ai image tasks failed: %v", err)
+		return
+	}
 	if err := s.SeedAiPlatformConfigs(); err != nil {
 		logger.Errorf("seed ai platform configs failed: %v", err)
 	}

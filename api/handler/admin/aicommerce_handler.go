@@ -485,7 +485,7 @@ func (h *AiCommerceHandler) ListTasks(c *gin.Context) {
 	var tasks []model.AiImageTask
 	offset := (page - 1) * pageSize
 	query := buildWhere(h.DB.Model(&model.AiImageTask{}))
-	if err := query.Select("id, task_no, user_id, module, image_type, platform, language, ratio, status, progress, model, credit_cost, provider, error_code, error_message, started_at, finished_at, created_at, updated_at").
+	if err := query.Select("id, task_no, user_id, module, image_type, platform, language, ratio, status, progress, model, credit_cost, balance_after, provider, error_code, error_message, started_at, finished_at, created_at, updated_at").
 		Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&tasks).Error; err != nil {
 		resp.ERROR(c, err.Error())
 		return
