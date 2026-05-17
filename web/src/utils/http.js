@@ -72,6 +72,14 @@ axios.interceptors.response.use(
       return Promise.reject(error.response.data)
     }
 
+    if (error.response.status === 429) {
+      const msg = error.response.data?.message || '请求过于频繁，请稍后再试'
+      const err = new Error(msg)
+      err.status = 429
+      err.response = error.response
+      return Promise.reject(err)
+    }
+
     if (error.response.status === 400) {
       let errorMessage = error.response.data.message
       if (!errorMessage) {

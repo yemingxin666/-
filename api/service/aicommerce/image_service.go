@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	logger2 "geekai/logger"
 	"geekai/service/aicommerce/prompt"
 	"geekai/service/aicommerce/provider"
 	"geekai/service/oss"
@@ -15,6 +16,8 @@ import (
 	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
 )
+
+var logger = logger2.GetLogger()
 
 type ImageService struct {
 	db          *gorm.DB
@@ -190,12 +193,11 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 		creditCost = translatePrice * n
 	}
 
-	// 2. 扣减算力（调用 GeeKAI 现有机制）
-	if err := s.deductCredit(ctx, userID, creditCost); err != nil {
-		return nil, fmt.Errorf("积分不足: %w", err)
+	if creditCost <= 0 {
+		return nil, fmt.Errorf("计费配置异常，请联系管理员")
 	}
 
-	// 3. 序列化请求参数
+	// 2. 序列化请求参数
 	inputBytes, _ := json.Marshal(req)
 	var inputJSON model.JSONMap
 	_ = json.Unmarshal(inputBytes, &inputJSON)
@@ -237,7 +239,7 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 		}
 	}
 
-	// 4. 创建任务记录
+	// 3. 扣费+建任务在同一 DB 事务中（原子性保证）
 	taskNo := generateTaskNo()
 	task := &model.AiImageTask{
 		TaskNo:     taskNo,
@@ -248,27 +250,31 @@ func (s *ImageService) SubmitTask(ctx context.Context, userID uint, req Generate
 		Language:   req.Language,
 		Ratio:      req.Ratio,
 		InputJSON:  inputJSON,
-		Status:     model.TaskStatusPending,
+		Status:     model.TaskStatusQueued,
 		Model:      modelName,
 		CreditCost: creditCost,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	}
-	if err := s.db.Create(task).Error; err != nil {
-		// 创建失败退还算力
-		_ = s.refundCredit(ctx, userID, creditCost)
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := s.deductCreditTx(tx, userID, creditCost); err != nil {
+			return fmt.Errorf("积分不足: %w", err)
+		}
+		return tx.Create(task).Error
+	}); err != nil {
 		return nil, err
 	}
 
-	// 5. 入队
+	// 4. 入队（Redis 在 DB 事务提交后执行）
 	if err := s.enqueue(ctx, task.Id, taskNo); err != nil {
-		// 入队失败退还算力并更新状态
-		_ = s.refundCredit(ctx, userID, creditCost)
-		s.db.Model(task).Update("status", model.TaskStatusFailed)
-		return nil, err
+		if compErr := s.compensateEnqueueFailure(task.Id, taskNo, userID, creditCost, err); compErr != nil {
+			logger.Errorf("SubmitTask: enqueue failed AND compensate failed: task_no=%s, user=%d, amount=%d, enqueueErr=%v, compErr=%v",
+				taskNo, userID, creditCost, err, compErr)
+			return nil, fmt.Errorf("任务提交失败且补偿失败，请联系客服: task_no=%s", taskNo)
+		}
+		return nil, fmt.Errorf("任务提交失败，积分已退回")
 	}
-	s.db.Model(task).Update("status", model.TaskStatusQueued)
-	task.Status = model.TaskStatusQueued
+
 	return task, nil
 }
 
@@ -319,11 +325,11 @@ func (s *ImageService) SubmitEditTask(ctx context.Context, userID uint, req Edit
 	if err != nil {
 		return nil, fmt.Errorf("模型不可用: %w", err)
 	}
-	if err := s.deductCredit(ctx, userID, creditCost); err != nil {
-		return nil, fmt.Errorf("积分不足: %w", err)
+	if creditCost <= 0 {
+		return nil, fmt.Errorf("计费配置异常，请联系管理员")
 	}
 
-	// 5. 序列化 InputJSON：只保留编辑必需字段，便于 worker 取用
+	// 5. 序列化 InputJSON
 	inputBytes, _ := json.Marshal(map[string]interface{}{
 		"prompt":           prompt,
 		"source_task_no":   srcTask.TaskNo,
@@ -334,7 +340,7 @@ func (s *ImageService) SubmitEditTask(ctx context.Context, userID uint, req Edit
 	var inputJSON model.JSONMap
 	_ = json.Unmarshal(inputBytes, &inputJSON)
 
-	// 6. 创建任务（继承原图 ratio，模块标记为 edit）
+	// 6. 扣费+建任务在同一 DB 事务中
 	taskNo := generateTaskNo()
 	ratio := srcTask.Ratio
 	if ratio == "" {
@@ -346,31 +352,31 @@ func (s *ImageService) SubmitEditTask(ctx context.Context, userID uint, req Edit
 		Module:     ModuleEdit,
 		Ratio:      ratio,
 		InputJSON:  inputJSON,
-		Status:     model.TaskStatusPending,
+		Status:     model.TaskStatusQueued,
 		Model:      modelName,
 		CreditCost: creditCost,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	}
-	if err := s.db.Create(task).Error; err != nil {
-		_ = s.refundCredit(ctx, userID, creditCost)
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := s.deductCreditTx(tx, userID, creditCost); err != nil {
+			return fmt.Errorf("积分不足: %w", err)
+		}
+		return tx.Create(task).Error
+	}); err != nil {
 		return nil, err
 	}
 
-	// 7. 入队
+	// 7. 入队（DB 事务提交后执行）
 	if err := s.enqueue(ctx, task.Id, taskNo); err != nil {
-		_ = s.refundCredit(ctx, userID, creditCost)
-		s.db.Model(task).Update("status", model.TaskStatusFailed)
-		return nil, err
+		if compErr := s.compensateEnqueueFailure(task.Id, taskNo, userID, creditCost, err); compErr != nil {
+			logger.Errorf("SubmitEditTask: enqueue failed AND compensate failed: task_no=%s, user=%d, amount=%d, enqueueErr=%v, compErr=%v",
+				taskNo, userID, creditCost, err, compErr)
+			return nil, fmt.Errorf("任务提交失败且补偿失败，请联系客服: task_no=%s", taskNo)
+		}
+		return nil, fmt.Errorf("任务提交失败，积分已退回")
 	}
-	// 入队成功后，task 状态必须从 pending 切到 queued，否则 dispatcher 的 CAS
-	// (queued→running) 会跳过本任务，造成扣费后永久卡住的孤儿任务
-	if err := s.db.Model(task).Update("status", model.TaskStatusQueued).Error; err != nil {
-		_ = s.refundCredit(ctx, userID, creditCost)
-		s.db.Model(task).Update("status", model.TaskStatusFailed)
-		return nil, fmt.Errorf("更新任务状态失败: %w", err)
-	}
-	task.Status = model.TaskStatusQueued
+
 	return task, nil
 }
 
@@ -855,7 +861,38 @@ func (s *ImageService) enqueue(ctx context.Context, taskID uint, taskNo string) 
 	return s.rdb.LPush(ctx, s.cfg.QueueName, payload).Err()
 }
 
+func (s *ImageService) compensateEnqueueFailure(taskID uint, taskNo string, userID uint, amount int, enqueueErr error) error {
+	if amount <= 0 {
+		return fmt.Errorf("invalid refund amount: %d", amount)
+	}
+	compCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return s.db.WithContext(compCtx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&model.AiImageTask{}).
+			Where("id = ? AND status = ? AND started_at IS NULL", taskID, model.TaskStatusQueued).
+			Updates(map[string]interface{}{
+				"status":        model.TaskStatusFailed,
+				"error_message": "入队失败: " + enqueueErr.Error(),
+				"finished_at":   time.Now(),
+				"updated_at":    time.Now(),
+			})
+		if result.Error != nil {
+			return fmt.Errorf("mark task failed: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("task %s no longer queued, skip refund", taskNo)
+		}
+		return tx.Model(&model.User{}).
+			Where("id = ?", userID).
+			UpdateColumn("power", gorm.Expr("power + ?", amount)).Error
+	})
+}
+
 func (s *ImageService) deductCredit(ctx context.Context, userID uint, amount int) error {
+	if amount <= 0 {
+		return fmt.Errorf("invalid credit amount: %d", amount)
+	}
 	result := s.db.Model(&model.User{}).
 		Where("id = ? AND power >= ?", userID, amount).
 		UpdateColumn("power", gorm.Expr("power - ?", amount))
@@ -868,7 +905,26 @@ func (s *ImageService) deductCredit(ctx context.Context, userID uint, amount int
 	return nil
 }
 
+func (s *ImageService) deductCreditTx(tx *gorm.DB, userID uint, amount int) error {
+	if amount <= 0 {
+		return fmt.Errorf("invalid credit amount: %d", amount)
+	}
+	result := tx.Model(&model.User{}).
+		Where("id = ? AND power >= ?", userID, amount).
+		UpdateColumn("power", gorm.Expr("power - ?", amount))
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("算力不足")
+	}
+	return nil
+}
+
 func (s *ImageService) refundCredit(_ context.Context, userID uint, amount int) error {
+	if amount <= 0 {
+		return fmt.Errorf("invalid refund amount: %d", amount)
+	}
 	return s.db.Model(&model.User{}).Where("id = ?", userID).
 		UpdateColumn("power", gorm.Expr("power + ?", amount)).Error
 }

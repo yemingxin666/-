@@ -23,7 +23,7 @@ import (
 // RatioConvertCreditPerImage 比例转换每张图的算力单价（outpaint 模式）
 // crop 模式使用 RatioConvertCropCredit
 const (
-	RatioConvertOutpaintCredit = 10
+	RatioConvertOutpaintCredit = 6
 	RatioConvertCropCredit     = 3
 )
 
@@ -442,7 +442,7 @@ func refundFailedRatioConvertCredits(db *gorm.DB, task *model.AiImageTask, total
 	})
 }
 
-// refundAutoModeDiff auto 模式差价退款：预收 outpaint 价，实际走 crop 时退（10-3）差价
+// refundAutoModeDiff auto 模式差价退款：预收 outpaint 价，实际走 crop 时退（6-3）差价
 func refundAutoModeDiff(db *gorm.DB, task *model.AiImageTask, diff int) error {
 	if diff <= 0 {
 		return nil

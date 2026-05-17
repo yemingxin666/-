@@ -40,24 +40,29 @@ func NewImageHandler(app *core.AppServer, db *gorm.DB, svc *aicommerce.ImageServ
 func (h *ImageHandler) RegisterRoutes() {
 	group := h.app.Engine.Group("/api/ai-commerce")
 	group.Use(middleware.UserAuthMiddleware(h.app.Config.Session.SecretKey, h.app.Redis))
-	{
-		group.POST("/assets", h.UploadAsset)
-		group.POST("/main-images", h.GenerateImage(aicommerce.ModuleMainImage))
-		group.POST("/detail-pages", h.GenerateImage(aicommerce.ModuleDetailPage))
-		group.POST("/white-backgrounds", h.GenerateImage(aicommerce.ModuleWhiteBg))
-		group.POST("/clone-designs", h.GenerateImage(aicommerce.ModuleClone))
-		group.POST("/ratio-conversions", h.GenerateImage(aicommerce.ModuleRatioConvert))
-		group.POST("/image-text-translations", h.GenerateImage(aicommerce.ModuleTranslate))
-		group.POST("/edit", h.EditImage)
-		group.GET("/tasks/:task_no", h.GetTask)
-		group.GET("/tasks/:task_no/events", h.TaskEvents)
-		group.DELETE("/tasks/:task_no", h.DeleteTask)
-		group.DELETE("/assets/:asset_no", h.DeleteAsset)
-		group.GET("/gallery", h.Gallery)
-		// group.POST("/copywrite", h.Copywrite) // AI 识别图片并代写卖点：暂时下线（保留 handler 以便后续恢复）
-		group.GET("/models", h.ListModels)
-		group.GET("/platform-configs", h.ListPlatformConfigs)
-	}
+
+	uploadLimit := middleware.RateLimitEvery(h.app.Redis, 2*time.Second)
+	submitLimit := middleware.RateLimitEvery(h.app.Redis, 3*time.Second)
+	deleteLimit := middleware.RateLimitEvery(h.app.Redis, 1*time.Second)
+
+	group.POST("/assets", uploadLimit, h.UploadAsset)
+	group.POST("/main-images", submitLimit, h.GenerateImage(aicommerce.ModuleMainImage))
+	group.POST("/detail-pages", submitLimit, h.GenerateImage(aicommerce.ModuleDetailPage))
+	group.POST("/white-backgrounds", submitLimit, h.GenerateImage(aicommerce.ModuleWhiteBg))
+	group.POST("/clone-designs", submitLimit, h.GenerateImage(aicommerce.ModuleClone))
+	group.POST("/ratio-conversions", submitLimit, h.GenerateImage(aicommerce.ModuleRatioConvert))
+	group.POST("/image-text-translations", submitLimit, h.GenerateImage(aicommerce.ModuleTranslate))
+	group.POST("/edit", submitLimit, h.EditImage)
+
+	group.DELETE("/tasks/:task_no", deleteLimit, h.DeleteTask)
+	group.DELETE("/assets/:asset_no", deleteLimit, h.DeleteAsset)
+
+	group.GET("/tasks/:task_no", h.GetTask)
+	group.GET("/tasks/:task_no/events", h.TaskEvents)
+	group.GET("/gallery", h.Gallery)
+	// group.POST("/copywrite", h.Copywrite) // AI 识别图片并代写卖点：暂时下线（保留 handler 以便后续恢复）
+	group.GET("/models", h.ListModels)
+	group.GET("/platform-configs", h.ListPlatformConfigs)
 }
 
 // GenerateImage 生成各模块图片的通用 Handler

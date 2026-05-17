@@ -9,6 +9,8 @@ const MODULE_CAPS = {
   ratio_convert: 'img2img',
 }
 
+const powerChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ecom_power_sync') : null
+
 export const useEcomConfigStore = defineStore('ecomConfig', () => {
   const userPower = ref(0)
 
@@ -90,7 +92,16 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
     try {
       const user = await checkSession()
       userPower.value = user.power
+      if (powerChannel) powerChannel.postMessage({ type: 'power_update', value: user.power })
     } catch (_) {}
+  }
+
+  if (powerChannel) {
+    powerChannel.addEventListener('message', (event) => {
+      if (event.data?.type === 'power_update' && typeof event.data.value === 'number') {
+        userPower.value = event.data.value
+      }
+    })
   }
 
   const loadPlatformConfigs = async () => {
@@ -130,6 +141,7 @@ export const useEcomConfigStore = defineStore('ecomConfig', () => {
 
   const deductPower = (amount) => {
     userPower.value = Math.max(0, userPower.value - amount)
+    if (powerChannel) powerChannel.postMessage({ type: 'power_update', value: userPower.value })
   }
 
   const getModelUnitPrice = (modelName, module) => {

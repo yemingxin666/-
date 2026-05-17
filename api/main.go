@@ -307,6 +307,18 @@ func main() {
 				},
 			})
 		}),
+		fx.Provide(func(app *core.AppServer, db *gorm.DB, rdb *redis.Client) *aicWorker.OrphanReconciler {
+			cfg := buildAiCommerceConfig(app.Config)
+			return aicWorker.NewOrphanReconciler(db, rdb, cfg)
+		}),
+		fx.Invoke(func(lc fx.Lifecycle, r *aicWorker.OrphanReconciler) {
+			lc.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					go r.Run(context.Background())
+					return nil
+				},
+			})
+		}),
 		fx.Provide(func(db *gorm.DB, mgr *oss.UploaderManager) *aicWorker.ReferenceCleaner {
 			return aicWorker.NewReferenceCleaner(db, mgr)
 		}),
