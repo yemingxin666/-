@@ -27,6 +27,14 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist', // 构建输出目录
     },
 
+    css: {
+      preprocessorOptions: {
+        scss: {
+          api: 'modern-compiler',
+        },
+      },
+    },
+
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
