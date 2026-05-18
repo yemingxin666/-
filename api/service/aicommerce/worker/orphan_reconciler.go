@@ -50,6 +50,7 @@ func (r *OrphanReconciler) Run(ctx context.Context) {
 func (r *OrphanReconciler) reconcile(ctx context.Context) {
 	r.requeueStaleQueued(ctx)
 	r.failStalePending(ctx)
+	r.failStaleRunning(ctx)
 }
 
 func (r *OrphanReconciler) requeueStaleQueued(ctx context.Context) {
@@ -121,6 +122,50 @@ func (r *OrphanReconciler) failStalePending(ctx context.Context) {
 			logger.Errorf("OrphanReconciler: fail+refund failed task_no=%s: %v", task.TaskNo, err)
 		} else {
 			logger.Infof("OrphanReconciler: failed stale pending task_no=%s, refunded %d", task.TaskNo, task.CreditCost)
+		}
+	}
+}
+
+func runningTimeoutForModule(module string) time.Duration {
+	switch module {
+	case model.ModuleMainImage, model.ModuleDetailPage:
+		return 10 * time.Minute
+	default:
+		return 8 * time.Minute
+	}
+}
+
+func (r *OrphanReconciler) failStaleRunning(ctx context.Context) {
+	earliestCutoff := time.Now().Add(-8 * time.Minute)
+	var tasks []model.AiImageTask
+	if err := r.db.WithContext(ctx).
+		Where("status = ? AND started_at IS NOT NULL AND started_at < ? AND finished_at IS NULL AND deleted_at IS NULL",
+			model.TaskStatusRunning, earliestCutoff).
+		Limit(r.batchSize).
+		Find(&tasks).Error; err != nil {
+		logger.Errorf("OrphanReconciler: query stale running failed: %v", err)
+		return
+	}
+
+	now := time.Now()
+	for _, task := range tasks {
+		if task.StartedAt == nil {
+			continue
+		}
+		timeout := runningTimeoutForModule(task.Module)
+		if task.StartedAt.After(now.Add(-timeout)) {
+			continue
+		}
+
+		changed, err := failTaskAndRefundWithRetry(ctx, r.db, task.Id,
+			[]string{model.TaskStatusRunning}, timeoutRefundMessage)
+		if err != nil {
+			logger.Errorf("OrphanReconciler: fail stale running task_no=%s: %v", task.TaskNo, err)
+			continue
+		}
+		if changed {
+			logger.Infof("OrphanReconciler: failed stale running task_no=%s module=%s timeout=%s refunded=%d",
+				task.TaskNo, task.Module, timeout, task.CreditCost)
 		}
 	}
 }

@@ -17,7 +17,7 @@ type AiImageTask struct {
 	Ratio         string     `gorm:"column:ratio;type:varchar(16)" json:"ratio"`
 	InputJSON     JSONMap    `gorm:"column:input_json;type:json;not null" json:"input_json"`
 	PromptJSON    JSONMap    `gorm:"column:prompt_json;type:json" json:"prompt_json"`
-	Status        string     `gorm:"column:status;type:varchar(16);not null;default:pending;index:idx_status" json:"status"`
+	Status        string     `gorm:"column:status;type:varchar(16);not null;default:pending;index:idx_status;index:idx_status_started,priority:1" json:"status"`
 	Progress      int        `gorm:"column:progress;type:tinyint;not null;default:0" json:"progress"`
 	Model         string     `gorm:"column:model;type:varchar(64)" json:"model"`
 	CreditCost    int        `gorm:"column:credit_cost;type:int" json:"credit_cost"`
@@ -27,8 +27,8 @@ type AiImageTask struct {
 	ProviderJobId string     `gorm:"column:provider_job_id;type:varchar(128)" json:"provider_job_id"`
 	ErrorCode     string     `gorm:"column:error_code;type:varchar(64)" json:"error_code"`
 	ErrorMessage  string     `gorm:"column:error_message;type:varchar(1024)" json:"error_message"`
-	StartedAt     *time.Time `gorm:"column:started_at" json:"started_at"`
-	FinishedAt    *time.Time `gorm:"column:finished_at" json:"finished_at"`
+	StartedAt     *time.Time `gorm:"column:started_at;index:idx_status_started,priority:2" json:"started_at"`
+	FinishedAt    *time.Time `gorm:"column:finished_at;index:idx_status_started,priority:3" json:"finished_at"`
 	CreatedAt     time.Time  `gorm:"column:created_at;not null;index:idx_deleted_created,priority:2,sort:desc;index:idx_user_created,priority:2,sort:desc" json:"created_at"`
 	UpdatedAt     time.Time  `gorm:"column:updated_at;not null" json:"updated_at"`
 	DeletedAt     *time.Time `gorm:"column:deleted_at;index:idx_deleted_created,priority:1" json:"deleted_at,omitempty"`

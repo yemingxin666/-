@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime/debug"
+
 	"geekai/service/aicommerce"
 	"geekai/service/aicommerce/provider"
 	"geekai/service/aicommerce/worker/chains"
@@ -116,6 +118,20 @@ func (d *Dispatcher) Run(ctx context.Context) {
 		sem <- struct{}{}
 		go func(p queuePayload) {
 			defer func() { <-sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Errorf("worker panic task_id=%d task_no=%s panic=%v\n%s",
+						p.TaskID, p.TaskNo, r, string(debug.Stack()))
+					cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					if changed, err := failTaskAndRefundWithRetry(cleanupCtx, d.db, p.TaskID,
+						[]string{model.TaskStatusQueued, model.TaskStatusRunning}, panicRefundMessage); err != nil {
+						logger.Errorf("panic cleanup failed task_id=%d: %v", p.TaskID, err)
+					} else if changed {
+						logger.Infof("panic cleanup ok task_id=%d", p.TaskID)
+					}
+				}
+			}()
 			d.execute(ctx, p.TaskID)
 		}(payload)
 	}
@@ -134,8 +150,12 @@ func (d *Dispatcher) execute(ctx context.Context, taskID uint) {
 			"status":     model.TaskStatusRunning,
 			"started_at": time.Now(),
 		})
+	if result.Error != nil {
+		logger.Errorf("task %d start CAS failed: %v", taskID, result.Error)
+		return
+	}
 	if result.RowsAffected == 0 {
-		return // 已被其他 Worker 处理
+		return
 	}
 
 	var execErr error
@@ -178,32 +198,30 @@ func (d *Dispatcher) execute(ctx context.Context, taskID uint) {
 		execErr = nil
 	}
 
-	now := time.Now()
+	var terminalEvent string
 	if execErr != nil {
 		logger.Errorf("task %d failed: %v", taskID, execErr)
-		d.db.Model(&task).Updates(map[string]interface{}{
-			"status":        model.TaskStatusFailed,
-			"error_message": execErr.Error(),
-			"finished_at":   now,
-		})
-		// 退还算力
-		d.db.Model(&model.User{}).Where("id = ?", task.UserId).
-			UpdateColumn("power", gorm.Expr("power + ?", task.CreditCost))
+		if changed, err := failTaskAndRefundWithRetry(ctx, d.db, taskID,
+			[]string{model.TaskStatusRunning}, execErr.Error()); err != nil {
+			logger.Errorf("task %d terminal update failed: %v", taskID, err)
+		} else if changed {
+			terminalEvent = "failed"
+		} else {
+			logger.Warnf("task %d failure update skipped, status no longer running", taskID)
+		}
 	} else {
-		d.db.Model(&task).Updates(map[string]interface{}{
-			"status":      model.TaskStatusSucceeded,
-			"progress":    100,
-			"finished_at": now,
-		})
+		if changed, err := succeedTaskWithRetry(ctx, d.db, taskID); err != nil {
+			logger.Errorf("task %d success update failed: %v", taskID, err)
+		} else if changed {
+			terminalEvent = "completed"
+		} else {
+			logger.Warnf("task %d success update skipped, status no longer running", taskID)
+		}
 	}
 
-	// 发布进度事件到 Redis PubSub（供 SSE Handler 消费）
-	d.rdb.Publish(ctx, "aic:task:"+task.TaskNo, func() string {
-		if execErr != nil {
-			return "failed"
-		}
-		return "completed"
-	}())
+	if terminalEvent != "" {
+		d.rdb.Publish(ctx, "aic:task:"+task.TaskNo, terminalEvent)
+	}
 }
 
 func (d *Dispatcher) resolveImageClient(ctx context.Context, task *model.AiImageTask) (provider.ImageClient, error) {
