@@ -171,7 +171,7 @@ func validate(prompt string) error {
 	if len(prompt) < 10 {
 		return fmt.Errorf("prompt too short: %d chars", len(prompt))
 	}
-	if len(prompt) > 4000 {
+	if len(prompt) > 8000 {
 		return fmt.Errorf("prompt too long: %d chars", len(prompt))
 	}
 	// 违禁词检查（可从 DB 加载扩展）
