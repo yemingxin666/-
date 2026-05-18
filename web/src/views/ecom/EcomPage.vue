@@ -1,4 +1,5 @@
 <template>
+  <div class="ecom-page">
   <EcomLayout>
     <template #default="{ activeModule }">
       <MainImagePage v-if="activeModule === 'main_image'" />
@@ -19,6 +20,7 @@
       <el-button @click="showRechargeDialog = false" style="margin-left:8px">稍后再说</el-button>
     </div>
   </el-dialog>
+  </div>
 </template>
 
 <script setup>

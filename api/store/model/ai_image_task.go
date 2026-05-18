@@ -11,7 +11,7 @@ type AiImageTask struct {
 	TaskNo        string     `gorm:"column:task_no;type:varchar(64);uniqueIndex;not null" json:"task_no"`
 	UserId        uint       `gorm:"column:user_id;type:int(11);not null;index:idx_user_created,priority:1" json:"user_id"`
 	Module        string     `gorm:"column:module;type:varchar(32);not null;index:idx_module" json:"module"`
-	ImageType     string     `gorm:"column:image_type;type:varchar(64)" json:"image_type"`
+	ImageType     string     `gorm:"column:image_type;type:varchar(512)" json:"image_type"`
 	Platform      string     `gorm:"column:platform;type:varchar(32)" json:"platform"`
 	Language      string     `gorm:"column:language;type:varchar(16)" json:"language"`
 	Ratio         string     `gorm:"column:ratio;type:varchar(16)" json:"ratio"`
