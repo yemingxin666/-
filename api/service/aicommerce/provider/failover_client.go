@@ -16,7 +16,7 @@ import (
 	"github.com/openai/openai-go"
 )
 
-const defaultEndpointTimeout = 120 * time.Second
+const defaultEndpointTimeout = 4 * time.Minute
 
 var failoverLogger = logger2.GetLogger()
 

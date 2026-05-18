@@ -20,7 +20,7 @@ func NewSiliconFlow(baseURL, apiKey string) *SiliconFlow {
 	return &SiliconFlow{
 		baseURL: baseURL,
 		apiKey:  apiKey,
-		client:  &http.Client{Timeout: 120 * time.Second},
+		client:  &http.Client{Timeout: 4 * time.Minute},
 	}
 }
 

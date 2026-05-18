@@ -20,9 +20,9 @@ const (
 	modelGPTImage2  = "gpt-image-2"
 	// openAIImagePerImageTimeout 每张参考图分摊的超时预算。
 	// 上游 chat/completions 图生图模型耗时大致与 content blocks 中的图数线性相关。
-	openAIImagePerImageTimeout = 90 * time.Second
+	openAIImagePerImageTimeout = 4 * time.Minute
 	// openAIImageMinTimeout 至少给出的请求超时（覆盖网络抖动）。
-	openAIImageMinTimeout = 90 * time.Second
+	openAIImageMinTimeout = 4 * time.Minute
 )
 
 type OpenAIImageClient struct {

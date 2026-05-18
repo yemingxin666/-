@@ -128,15 +128,21 @@ func (r *OrphanReconciler) failStalePending(ctx context.Context) {
 
 func runningTimeoutForModule(module string) time.Duration {
 	switch module {
+	case model.ModuleClone:
+		return 35 * time.Minute
+	case model.ModuleRatioConvert:
+		return 20 * time.Minute
 	case model.ModuleMainImage, model.ModuleDetailPage:
 		return 10 * time.Minute
+	case model.ModuleTranslate:
+		return 12 * time.Minute
 	default:
-		return 8 * time.Minute
+		return 10 * time.Minute
 	}
 }
 
 func (r *OrphanReconciler) failStaleRunning(ctx context.Context) {
-	earliestCutoff := time.Now().Add(-8 * time.Minute)
+	earliestCutoff := time.Now().Add(-35 * time.Minute)
 	var tasks []model.AiImageTask
 	if err := r.db.WithContext(ctx).
 		Where("status = ? AND started_at IS NOT NULL AND started_at < ? AND finished_at IS NULL AND deleted_at IS NULL",
