@@ -33,9 +33,7 @@ const (
 	PhaseFailed     = "failed"     // 失败
 )
 
-// createPhaseAsset 为某个 image_type 创建占位 asset，phase 字段标记当前阶段
-// 返回 asset ID 供后续 updatePhaseAsset 使用
-func createPhaseAsset(db *gorm.DB, task *model.AiImageTask, imageType, phase string) uint {
+func createPhaseAsset(db *gorm.DB, task *model.AiImageTask, imageType, phase string) (uint, error) {
 	taskID := task.Id
 	asset := model.AiImageAsset{
 		AssetNo:  fmt.Sprintf("phase_%d_%s_%d", taskID, imageType, time.Now().UnixNano()),
@@ -48,8 +46,10 @@ func createPhaseAsset(db *gorm.DB, task *model.AiImageTask, imageType, phase str
 		},
 		CreatedAt: time.Now(),
 	}
-	db.Create(&asset)
-	return asset.Id
+	if err := db.Create(&asset).Error; err != nil {
+		return 0, fmt.Errorf("create phase asset task=%d type=%s: %w", taskID, imageType, err)
+	}
+	return asset.Id, nil
 }
 
 // updatePhaseAsset 更新占位 asset 的阶段

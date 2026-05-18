@@ -132,8 +132,13 @@ func RunMainImage(
 		typeVars := vars
 		typeVars.ImageTypeDesc = prompt.ImageTypeDesc(imageType)
 
-		// 阶段 1：rendering — 创建占位 asset，前端立即可见"进行中"
-		phaseAssetID := createPhaseAsset(db, task, imageType, PhaseRendering)
+		phaseAssetID, phaseErr := createPhaseAsset(db, task, imageType, PhaseRendering)
+		if phaseErr != nil {
+			if firstErr == nil {
+				firstErr = phaseErr
+			}
+			continue
+		}
 
 		tmpl, err := repo.FindTemplate(task.Module, imageType)
 		if err != nil {
@@ -478,7 +483,7 @@ func refundPartialMainImage(db *gorm.DB, task *model.AiImageTask, total, succeed
 	expectedCost := total * unitCost
 	return db.Transaction(func(tx *gorm.DB) error {
 		taskResult := tx.Model(&model.AiImageTask{}).
-			Where("id = ? AND credit_cost = ?", task.Id, expectedCost).
+			Where("id = ? AND status = ? AND credit_cost = ?", task.Id, model.TaskStatusRunning, expectedCost).
 			Update("credit_cost", finalCost)
 		if taskResult.Error != nil {
 			return fmt.Errorf("update main_image credit_cost: %w", taskResult.Error)

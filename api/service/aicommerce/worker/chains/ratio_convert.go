@@ -77,7 +77,11 @@ func RunRatioConvert(
 	// 为每张图创建占位 asset（前端可立即看到 N 张"进行中"）
 	placeholderIDs := make([]uint, total)
 	for i := range assetNos {
-		placeholderIDs[i] = createPhaseAsset(db, task, ratioConvertImageType(i), PhaseRendering)
+		id, err := createPhaseAsset(db, task, ratioConvertImageType(i), PhaseRendering)
+		if err != nil {
+			return err
+		}
+		placeholderIDs[i] = id
 	}
 
 	var (
@@ -428,14 +432,21 @@ func refundFailedRatioConvertCredits(db *gorm.DB, task *model.AiImageTask, total
 	if refund <= 0 {
 		return nil
 	}
+	expectedCost := total * unitCost
 	return db.Transaction(func(tx *gorm.DB) error {
+		taskResult := tx.Model(&model.AiImageTask{}).
+			Where("id = ? AND status = ? AND credit_cost = ?", task.Id, model.TaskStatusRunning, expectedCost).
+			Update("credit_cost", finalCost)
+		if taskResult.Error != nil {
+			return fmt.Errorf("update ratio_convert credit_cost: %w", taskResult.Error)
+		}
+		if taskResult.RowsAffected == 0 {
+			return fmt.Errorf("credit_cost or status already changed, skip refund")
+		}
 		if err := tx.Model(&model.User{}).
 			Where("id = ?", task.UserId).
 			UpdateColumn("power", gorm.Expr("power + ?", refund)).Error; err != nil {
 			return fmt.Errorf("refund ratio_convert credits: %w", err)
-		}
-		if err := tx.Model(task).Update("credit_cost", finalCost).Error; err != nil {
-			return fmt.Errorf("update ratio_convert credit_cost: %w", err)
 		}
 		task.CreditCost = finalCost
 		return nil
@@ -447,18 +458,25 @@ func refundAutoModeDiff(db *gorm.DB, task *model.AiImageTask, diff int) error {
 	if diff <= 0 {
 		return nil
 	}
+	currentCost := task.CreditCost
+	newCost := currentCost - diff
+	if newCost < 0 {
+		newCost = 0
+	}
 	return db.Transaction(func(tx *gorm.DB) error {
+		taskResult := tx.Model(&model.AiImageTask{}).
+			Where("id = ? AND status = ? AND credit_cost = ?", task.Id, model.TaskStatusRunning, currentCost).
+			Update("credit_cost", newCost)
+		if taskResult.Error != nil {
+			return fmt.Errorf("update credit_cost after auto diff: %w", taskResult.Error)
+		}
+		if taskResult.RowsAffected == 0 {
+			return fmt.Errorf("credit_cost or status already changed, skip refund")
+		}
 		if err := tx.Model(&model.User{}).
 			Where("id = ?", task.UserId).
 			UpdateColumn("power", gorm.Expr("power + ?", diff)).Error; err != nil {
 			return fmt.Errorf("refund auto diff: %w", err)
-		}
-		newCost := task.CreditCost - diff
-		if newCost < 0 {
-			newCost = 0
-		}
-		if err := tx.Model(task).Update("credit_cost", newCost).Error; err != nil {
-			return fmt.Errorf("update credit_cost after auto diff: %w", err)
 		}
 		task.CreditCost = newCost
 		return nil

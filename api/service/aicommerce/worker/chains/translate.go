@@ -40,7 +40,11 @@ func RunTranslate(
 
 	placeholderIDs := make([]uint, total)
 	for i := range assetNos {
-		placeholderIDs[i] = createPhaseAsset(db, task, translateImageType(i), PhaseRendering)
+		id, err := createPhaseAsset(db, task, translateImageType(i), PhaseRendering)
+		if err != nil {
+			return err
+		}
+		placeholderIDs[i] = id
 	}
 
 	var (
@@ -154,7 +158,7 @@ func refundPartialTranslate(db *gorm.DB, task *model.AiImageTask, total, succeed
 	expectedCost := total * unitCost
 	return db.Transaction(func(tx *gorm.DB) error {
 		taskResult := tx.Model(&model.AiImageTask{}).
-			Where("id = ? AND credit_cost = ?", task.Id, expectedCost).
+			Where("id = ? AND status = ? AND credit_cost = ?", task.Id, model.TaskStatusRunning, expectedCost).
 			Update("credit_cost", finalCost)
 		if taskResult.Error != nil {
 			return fmt.Errorf("update translate credit_cost: %w", taskResult.Error)

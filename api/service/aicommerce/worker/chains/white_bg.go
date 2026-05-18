@@ -58,7 +58,11 @@ func RunWhiteBg(
 	// 不再出现"只显示 1 个任务 → 完成后突然冒出 2 张图"的跳变。
 	placeholderIDs := make([]uint, total)
 	for i, assetNo := range assetNos {
-		placeholderIDs[i] = createWhiteBgPlaceholder(db, task, assetNo, i)
+		id, err := createWhiteBgPlaceholder(db, task, assetNo, i)
+		if err != nil {
+			return err
+		}
+		placeholderIDs[i] = id
 	}
 
 	var (
@@ -179,7 +183,7 @@ func processOneWhiteBg(
 // createWhiteBgPlaceholder 为 white_bg 单张参考图创建占位 asset。
 // 与主图 chain 的 createPhaseAsset 行为一致，区别是用 "<module>_<idx>" 作为
 // metadata.image_type，让前端（即使未来改造为 typed items）也能稳定定位。
-func createWhiteBgPlaceholder(db *gorm.DB, task *model.AiImageTask, sourceAssetNo string, idx int) uint {
+func createWhiteBgPlaceholder(db *gorm.DB, task *model.AiImageTask, sourceAssetNo string, idx int) (uint, error) {
 	taskID := task.Id
 	asset := model.AiImageAsset{
 		AssetNo:   fmt.Sprintf("wbg_%d_%d_%d", task.Id, idx, time.Now().UnixNano()),
@@ -189,14 +193,15 @@ func createWhiteBgPlaceholder(db *gorm.DB, task *model.AiImageTask, sourceAssetN
 		MimeType:  "image/png",
 		CreatedAt: time.Now(),
 		MetadataJSON: model.JSONMap{
-			// 占位阶段：前端据此显示"处理中"，轮询到 oss_key 填充时切换为成功
 			"image_type":      fmt.Sprintf("%s_%d", task.Module, idx),
 			"phase":           PhaseRendering,
 			"source_asset_no": sourceAssetNo,
 		},
 	}
-	db.Create(&asset)
-	return asset.Id
+	if err := db.Create(&asset).Error; err != nil {
+		return 0, fmt.Errorf("create white_bg placeholder task=%d idx=%d: %w", taskID, idx, err)
+	}
+	return asset.Id, nil
 }
 
 // resolveReferenceURL 为 white_bg / 其它 chain 产生"阿里云可访问"的参考图 URL。
@@ -254,7 +259,7 @@ func refundPartialWhiteBg(db *gorm.DB, task *model.AiImageTask, total, succeeded
 	expectedCost := total * unitCost
 	return db.Transaction(func(tx *gorm.DB) error {
 		taskResult := tx.Model(&model.AiImageTask{}).
-			Where("id = ? AND credit_cost = ?", task.Id, expectedCost).
+			Where("id = ? AND status = ? AND credit_cost = ?", task.Id, model.TaskStatusRunning, expectedCost).
 			Update("credit_cost", finalCost)
 		if taskResult.Error != nil {
 			return fmt.Errorf("update white_bg credit_cost: %w", taskResult.Error)
