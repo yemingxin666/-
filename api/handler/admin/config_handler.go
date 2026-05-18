@@ -8,6 +8,8 @@ package admin
 // * +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 import (
+	"strings"
+
 	"geekai/core"
 	"geekai/core/middleware"
 	"geekai/core/types"
@@ -251,13 +253,14 @@ func (h *ConfigHandler) UpdatePayment(c *gin.Context) {
 		return
 	}
 
+	data = mergeMaskedPayment(data, h.sysConfig.Payment)
+
 	err := h.Update(types.ConfigKeyPayment, data)
 	if err != nil {
 		resp.ERROR(c, err.Error())
 		return
 	}
 
-	// 如果启用状态发生改变，则需要更新支付服务配置
 	if data.WxPay.Enabled {
 		err = h.wxpayService.UpdateConfig(&data.WxPay)
 		if err != nil {
@@ -277,7 +280,7 @@ func (h *ConfigHandler) UpdatePayment(c *gin.Context) {
 	}
 
 	h.sysConfig.Payment = data
-	resp.SUCCESS(c, data)
+	resp.SUCCESS(c, maskPaymentConfig(data))
 }
 
 // UpdateSms 更新短信配置
@@ -387,6 +390,16 @@ func (h *ConfigHandler) Get(c *gin.Context) {
 		return
 	}
 
+	if name == types.ConfigKeyPayment {
+		var payConfig types.PaymentConfig
+		if err := utils.JsonDecode(config.Value, &payConfig); err != nil {
+			resp.ERROR(c, err.Error())
+			return
+		}
+		resp.SUCCESS(c, maskPaymentConfig(payConfig))
+		return
+	}
+
 	var value map[string]any
 	err := utils.JsonDecode(config.Value, &value)
 	if err != nil {
@@ -395,5 +408,53 @@ func (h *ConfigHandler) Get(c *gin.Context) {
 	}
 
 	resp.SUCCESS(c, value)
+}
+
+const secretMask = "******"
+
+func maskSecret(s string) string {
+	if s == "" {
+		return ""
+	}
+	if len(s) <= 8 {
+		return secretMask
+	}
+	return s[:4] + secretMask + s[len(s)-4:]
+}
+
+func isMasked(s string) bool {
+	return strings.Contains(s, secretMask)
+}
+
+func maskPaymentConfig(c types.PaymentConfig) types.PaymentConfig {
+	c.Alipay.PrivateKey = maskSecret(c.Alipay.PrivateKey)
+	c.Alipay.AlipayPublicKey = maskSecret(c.Alipay.AlipayPublicKey)
+	c.Alipay.AESKey = maskSecret(c.Alipay.AESKey)
+	c.WxPay.PrivateKey = maskSecret(c.WxPay.PrivateKey)
+	c.WxPay.ApiV3Key = maskSecret(c.WxPay.ApiV3Key)
+	c.Epay.PrivateKey = maskSecret(c.Epay.PrivateKey)
+	return c
+}
+
+func mergeMaskedPayment(next, current types.PaymentConfig) types.PaymentConfig {
+	if isMasked(next.Alipay.PrivateKey) {
+		next.Alipay.PrivateKey = current.Alipay.PrivateKey
+	}
+	if isMasked(next.Alipay.AlipayPublicKey) {
+		next.Alipay.AlipayPublicKey = current.Alipay.AlipayPublicKey
+	}
+	if isMasked(next.Alipay.AESKey) {
+		next.Alipay.AESKey = current.Alipay.AESKey
+	}
+	if isMasked(next.WxPay.PrivateKey) {
+		next.WxPay.PrivateKey = current.WxPay.PrivateKey
+	}
+	if isMasked(next.WxPay.ApiV3Key) {
+		next.WxPay.ApiV3Key = current.WxPay.ApiV3Key
+	}
+	if isMasked(next.Epay.PrivateKey) {
+		next.Epay.PrivateKey = current.Epay.PrivateKey
+	}
+	return next
 }
 

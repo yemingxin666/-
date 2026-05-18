@@ -49,6 +49,10 @@ func (s *AlipayService) UpdateConfig(config *types.AlipayConfig) error {
 		return fmt.Errorf("error with initialize alipay service: %v", err)
 	}
 
+	if config.AESKey != "" {
+		client.SetAESKey(config.AESKey)
+	}
+
 	s.client = client
 	s.config = config
 	if os.Getenv("GEEKAI_DEBUG") == "true" {
@@ -63,6 +67,7 @@ func (s *AlipayService) Pay(params PayRequest) (string, error) {
 	bm.Set("subject", params.Subject)
 	bm.Set("out_trade_no", params.OutTradeNo)
 	bm.Set("total_amount", params.TotalFee)
+	bm.Set("notify_url", params.NotifyURL)
 	return s.client.TradeWapPay(context.Background(), bm)
 }
 
@@ -93,17 +98,21 @@ func (s *AlipayService) Query(outTradeNo string) (OrderInfo, error) {
 
 // TradeVerify 交易验证
 func (s *AlipayService) TradeVerify(request *http.Request) (OrderInfo, error) {
-	notifyReq, err := alipay.ParseNotifyToBodyMap(request) // c.Request 是 gin 框架的写法
+	notifyReq, err := alipay.ParseNotifyToBodyMap(request)
 	if err != nil {
-		return OrderInfo{}, fmt.Errorf("error with parse notify request: %v", err)
+		return OrderInfo{}, fmt.Errorf("parse notify: %w", err)
+	}
+
+	if notifyReq.Get("app_id") != s.config.AppId {
+		return OrderInfo{}, fmt.Errorf("app_id mismatch: got %s", notifyReq.Get("app_id"))
 	}
 
 	_, err = alipay.VerifySignWithCert(s.config.AlipayPublicKey, notifyReq)
 	if err != nil {
-		return OrderInfo{}, fmt.Errorf("error with verify sign: %v", err)
+		return OrderInfo{}, fmt.Errorf("verify sign: %w", err)
 	}
 
-	return s.Query(request.Form.Get("out_trade_no"))
+	return s.Query(notifyReq.Get("out_trade_no"))
 }
 
 var _ PayService = (*AlipayService)(nil)

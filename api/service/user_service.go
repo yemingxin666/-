@@ -51,6 +51,29 @@ func (s *UserService) IncreasePower(userId uint, power int, log model.PowerLog) 
 	return nil
 }
 
+// IncreasePowerTx 在外部事务中增加用户算力
+func (s *UserService) IncreasePowerTx(tx *gorm.DB, userId uint, power int, log model.PowerLog) error {
+	err := tx.Model(&model.User{}).Where("id", userId).UpdateColumn("power", gorm.Expr("power + ?", power)).Error
+	if err != nil {
+		return err
+	}
+	var user model.User
+	if err := tx.Where("id", userId).First(&user).Error; err != nil {
+		return err
+	}
+	return tx.Create(&model.PowerLog{
+		UserId:    user.Id,
+		Username:  user.Username,
+		Type:      log.Type,
+		Amount:    power,
+		Balance:   user.Power,
+		Mark:      types.PowerAdd,
+		Model:     log.Model,
+		Remark:    log.Remark,
+		CreatedAt: time.Now(),
+	}).Error
+}
+
 // DecreasePower 减少用户算力
 func (s *UserService) DecreasePower(userId uint, power int, log model.PowerLog) error {
 	s.lock.Lock()

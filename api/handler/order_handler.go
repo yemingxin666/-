@@ -83,20 +83,13 @@ func (h *OrderHandler) List(c *gin.Context) {
 // Query 查询订单状态
 func (h *OrderHandler) Query(c *gin.Context) {
 	orderNo := h.GetTrim(c, "order_no")
+	userId := h.GetLoginUserId(c)
 	var order model.Order
-	res := h.DB.Where("order_no = ?", orderNo).First(&order)
+	res := h.DB.Where("order_no = ? AND user_id = ?", orderNo, userId).First(&order)
 	if res.Error != nil {
 		resp.ERROR(c, "Order not found")
 		return
 	}
-
-	if order.Status == types.OrderPaidSuccess {
-		resp.SUCCESS(c, gin.H{"status": order.Status})
-		return
-	}
-
-	var item model.Order
-	h.DB.Where("order_no = ?", orderNo).First(&item)
 
 	resp.SUCCESS(c, gin.H{"status": order.Status})
 }

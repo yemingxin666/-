@@ -13,6 +13,7 @@ type AlipayConfig struct {
 	AppId           string `json:"app_id"`            // 应用 ID
 	PrivateKey      string `json:"private_key"`       // 应用私钥
 	AlipayPublicKey string `json:"alipay_public_key"` // 支付宝公钥
+	AESKey          string `json:"aes_key"`           // 接口内容加密 AES 密钥
 	Domain          string `json:"domain"`            // 支付回调域名
 }
 

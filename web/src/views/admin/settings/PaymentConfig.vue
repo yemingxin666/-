@@ -39,6 +39,9 @@
             </template>
             <el-input v-model="alipay.domain" />
           </el-form-item>
+          <el-form-item label="接口内容加密密钥(AES)"
+            ><el-input v-model="alipay.aes_key" placeholder="选填，开放平台开启接口加密后填写"
+          /></el-form-item>
           <el-form-item label="启用该支付通道"><el-switch v-model="alipay.enabled" /></el-form-item>
           <el-form-item label="启用沙盒模式"><el-switch v-model="alipay.sandbox" /></el-form-item>
         </el-form>
@@ -117,7 +120,7 @@
 import Alert from '@/components/ui/Alert.vue'
 import { httpGet, httpPost } from '@/utils/http'
 import { ElMessage } from 'element-plus'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 const loading = ref(true)
 const active = ref('alipay')
@@ -131,6 +134,7 @@ const alipay = ref({
   app_id: '',
   private_key: '',
   alipay_public_key: '',
+  aes_key: '',
   domain: '',
 })
 const wxpay = ref({

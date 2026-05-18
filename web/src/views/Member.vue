@@ -242,20 +242,34 @@ const alipay = (product) => {
   generateOrder('alipay')
 }
 
+const ALLOWED_PAY_DOMAINS = ['alipay.com', 'alipayobjects.com', 'tenpay.com', 'qq.com', 'wechat.com']
+const isValidPayUrl = (url) => {
+  try {
+    const host = new URL(url).hostname
+    return ALLOWED_PAY_DOMAINS.some((d) => host === d || host.endsWith('.' + d))
+  } catch {
+    return false
+  }
+}
+
 const generateOrder = (payWay) => {
   showLoading('正在生成支付订单...')
   // 生成支付订单
   httpPost('/api/payment/create', {
     pid: selectedPid.value,
     pay_way: payWay,
-    domain: `${window.location.protocol}//${window.location.host}`,
     device: isMobile() ? 'mobile' : 'pc',
   })
     .then((res) => {
       closeLoading()
 
       if (isMobile()) {
-        window.location.href = res.data.pay_url
+        if (isValidPayUrl(res.data.pay_url)) {
+          window.location.href = res.data.pay_url
+        } else {
+          ElMessage.error('检测到不安全的支付跳转地址')
+          return
+        }
       } else {
         QRCode.toDataURL(res.data.pay_url, { width: 300, height: 300, margin: 2 }, (error, url) => {
           if (error) {

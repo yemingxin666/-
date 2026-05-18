@@ -10,6 +10,12 @@ package handler
 import (
 	"embed"
 	"fmt"
+	"math"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
 	"geekai/core"
 	"geekai/core/middleware"
 	"geekai/core/types"
@@ -18,12 +24,10 @@ import (
 	"geekai/store/model"
 	"geekai/utils"
 	"geekai/utils/resp"
-	"net/http"
-	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type PayWay struct {
@@ -40,7 +44,6 @@ type PaymentHandler struct {
 	snowflake     *service.Snowflake
 	userService   *service.UserService
 	fs            embed.FS
-	lock          sync.Mutex
 	config        *types.PaymentConfig
 }
 
@@ -61,7 +64,6 @@ func NewPaymentHandler(
 		snowflake:     snowflake,
 		userService:   userService,
 		fs:            fs,
-		lock:          sync.Mutex{},
 		BaseHandler: BaseHandler{
 			App: server,
 			DB:  db,
@@ -211,10 +213,7 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		// 优先使用微信官方支付
 		if h.config.WxPay.Enabled {
 			data.Channel = "wxpay"
-			if h.config.WxPay.Domain != "" {
-				data.Domain = h.config.WxPay.Domain
-			}
-			notifyURL = fmt.Sprintf("%s/api/payment/notify/wxpay", data.Domain)
+			notifyURL = fmt.Sprintf("%s/api/payment/notify/wxpay", h.config.WxPay.Domain)
 			payURL, err = h.wxpayService.Pay(payment.PayRequest{
 				OutTradeNo: orderNo,
 				TotalFee:   fmt.Sprintf("%d", int(amount*100)),
@@ -231,10 +230,7 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		} else if h.config.Epay.Enabled { // 聚合支付
 			logger.Debugf("聚合支付%+v", data)
 			data.Channel = payment.PayChannelEpay
-			if h.config.Epay.Domain != "" {
-				data.Domain = h.config.Epay.Domain
-			}
-			notifyURL = fmt.Sprintf("%s/api/payment/notify/epay", data.Domain)
+			notifyURL = fmt.Sprintf("%s/api/payment/notify/epay", h.config.Epay.Domain)
 			params := payment.PayRequest{
 				OutTradeNo: orderNo,
 				Subject:    product.Name,
@@ -261,10 +257,7 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		if h.config.Alipay.Enabled {
 			logger.Debugf("支付宝，%+v", data)
 			data.Channel = payment.PayChannelAL
-			if h.config.Alipay.Domain != "" { // 用于本地调试支付
-				data.Domain = h.config.Alipay.Domain
-			}
-			notifyURL = fmt.Sprintf("%s/api/payment/notify/alipay", data.Domain)
+			notifyURL = fmt.Sprintf("%s/api/payment/notify/alipay", h.config.Alipay.Domain)
 			money := fmt.Sprintf("%.2f", amount)
 			payURL, err = h.alipayService.Pay(payment.PayRequest{
 				Device:     data.Device,
@@ -281,10 +274,7 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		} else if h.config.Epay.Enabled { // 聚合支付
 			logger.Debugf("聚合支付，%+v", data)
 			data.Channel = payment.PayChannelEpay
-			if h.config.Epay.Domain != "" {
-				data.Domain = h.config.Epay.Domain
-			}
-			notifyURL = fmt.Sprintf("%s/api/payment/notify/epay", data.Domain)
+			notifyURL = fmt.Sprintf("%s/api/payment/notify/epay", h.config.Epay.Domain)
 			params := payment.PayRequest{
 				OutTradeNo: orderNo,
 				Subject:    product.Name,
@@ -336,77 +326,79 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 	resp.SUCCESS(c, gin.H{"pay_url": payURL, "order_no": orderNo})
 }
 
-// 支付成功处理
+// paySuccess 支付成功处理（事务 + 行锁保证幂等）
 func (h *PaymentHandler) paySuccess(info payment.OrderInfo) error {
-	h.lock.Lock()
-	defer h.lock.Unlock()
+	return h.DB.Transaction(func(tx *gorm.DB) error {
+		var order model.Order
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("order_no = ?", info.OutTradeNo).First(&order).Error
+		if err != nil {
+			return fmt.Errorf("fetch order: %w", err)
+		}
 
-	var order model.Order
-	err := h.DB.Where("order_no", info.OutTradeNo).First(&order).Error
-	if err != nil {
-		return fmt.Errorf("error with fetch order: %v", err)
-	}
+		if order.Status == types.OrderPaidSuccess {
+			return nil
+		}
 
-	// 已支付订单，直接返回
-	if order.Status == types.OrderPaidSuccess {
+		if !amountsEqual(info.Amount, order.Amount) {
+			return fmt.Errorf("amount mismatch: paid=%s, expected=%.2f", info.Amount, order.Amount)
+		}
+
+		var remark types.OrderRemark
+		if err := utils.JsonDecode(order.Remark, &remark); err != nil {
+			return fmt.Errorf("decode order remark: %w", err)
+		}
+
+		err = tx.Model(&model.Order{}).
+			Where("id = ? AND status <> ?", order.Id, types.OrderPaidSuccess).
+			Updates(map[string]any{
+				"status":   types.OrderPaidSuccess,
+				"trade_no": info.TradeId,
+				"pay_time": utils.Str2stamp(info.PayTime),
+				"checked":  true,
+			}).Error
+		if err != nil {
+			return fmt.Errorf("update order: %w", err)
+		}
+
+		err = h.userService.IncreasePowerTx(tx, order.UserId, remark.Power, model.PowerLog{
+			Type:      types.PowerRecharge,
+			Model:     order.Subject,
+			Remark:    fmt.Sprintf("充值算力，金额：%.2f，订单号：%s", order.Amount, order.OrderNo),
+			CreatedAt: time.Now(),
+		})
+		if err != nil {
+			return fmt.Errorf("increase power: %w", err)
+		}
+
+		err = tx.Model(&model.Product{}).Where("id = ?", order.ProductId).
+			UpdateColumn("sales", gorm.Expr("sales + ?", 1)).Error
+		if err != nil {
+			return fmt.Errorf("update product sales: %w", err)
+		}
+
 		return nil
-	}
-
-	var user model.User
-	err = h.DB.First(&user, order.UserId).Error
-	if err != nil {
-		return fmt.Errorf("error with fetch user info: %v", err)
-	}
-
-	var remark types.OrderRemark
-	err = utils.JsonDecode(order.Remark, &remark)
-	if err != nil {
-		return fmt.Errorf("error with decode order remark: %v", err)
-	}
-
-	// 增加用户算力
-	err = h.userService.IncreasePower(order.UserId, remark.Power, model.PowerLog{
-		Type:      types.PowerRecharge,
-		Model:     order.Subject,
-		Remark:    fmt.Sprintf("充值算力，金额：%f，订单号：%s", order.Amount, order.OrderNo),
-		CreatedAt: time.Now(),
 	})
-	if err != nil {
-		return err
-	}
+}
 
-	// 更新订单状态
-	order.PayTime = utils.Str2stamp(info.PayTime)
-	order.Status = types.OrderPaidSuccess
-	order.TradeNo = info.TradeId
-	order.Checked = true
-	err = h.DB.Debug().Updates(&order).Error
+func amountsEqual(paidAmount string, orderAmount float64) bool {
+	paid, err := strconv.ParseFloat(strings.TrimSpace(paidAmount), 64)
 	if err != nil {
-		return fmt.Errorf("error with update order info: %v", err)
+		return false
 	}
-
-	// 更新产品销量
-	err = h.DB.Model(&model.Product{}).Where("id = ?", order.ProductId).
-		UpdateColumn("sales", gorm.Expr("sales + ?", 1)).Error
-	if err != nil {
-		return fmt.Errorf("error with update product sales: %v", err)
-	}
-
-	return nil
+	return int64(math.Round(paid*100)) == int64(math.Round(orderAmount*100))
 }
 
 // AlipayNotify 支付宝支付回调
 func (h *PaymentHandler) AlipayNotify(c *gin.Context) {
-	err := c.Request.ParseForm()
+	orderInfo, err := h.alipayService.TradeVerify(c.Request)
 	if err != nil {
+		logger.Errorf("alipay notify verify failed: %v", err)
 		c.String(http.StatusOK, "fail")
 		return
 	}
 
-	orderInfo, err := h.alipayService.Query(c.Request.Form.Get("out_trade_no"))
-	logger.Infof("收到支付宝商号订单支付回调：%+v", orderInfo)
 	if !orderInfo.Success() {
-		logger.Errorf("订单校验失败：%v", err)
 		c.String(http.StatusOK, "fail")
 		return
 	}
