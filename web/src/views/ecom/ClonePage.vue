@@ -143,6 +143,7 @@
           :deletable="false"
           :editable="item.status === 'succeeded' && !!item.asset_no"
           @edit="(p) => openEdit(taskStore.currentTask, item, p)"
+          @regenerate="submit"
         />
       </template>
       <template v-else-if="taskStore.outputs.length">
@@ -151,6 +152,7 @@
           :key="i"
           :url="url"
           :deletable="false"
+          @regenerate="submit"
         />
       </template>
       <EcomResultCard
@@ -160,6 +162,7 @@
         :progress="taskStore.currentTask?.progress || 0"
         :ratio="taskStore.submittedRatio"
         :deletable="false"
+        @regenerate="submit"
       />
     </div>
     <EcomHistoryGroup @edit="(task, item, p) => openEdit(task, item, p)" />
