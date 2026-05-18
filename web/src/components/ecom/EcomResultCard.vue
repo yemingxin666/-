@@ -1,5 +1,5 @@
 <template>
-  <div class="result-card" :class="{ 'is-failed': status === 'failed' }" :style="{ '--card-ratio': cssRatio }">
+  <div class="result-card" :class="{ 'is-failed': status === 'failed', 'is-timeout': status === 'timeout' }" :style="{ '--card-ratio': cssRatio }">
     <div class="card-image-wrap">
       <!-- 成功：显示图片 + 标签徽章 + 操作覆盖层（粘性显示，使用 stickyUrl 避免闪烁） -->
       <template v-if="stickyUrl && status !== 'failed'">
@@ -19,6 +19,14 @@
       <div v-else-if="status === 'failed'" class="error-card">
         <el-icon class="error-icon"><CircleCloseFilled /></el-icon>
         <div class="error-label">{{ label || '生成失败' }}</div>
+        <el-button size="small" @click="emit('regenerate', props.imageType)" class="retry-btn">重试</el-button>
+      </div>
+
+      <!-- 超时态 -->
+      <div v-else-if="status === 'timeout'" class="error-card timeout-card" role="alert">
+        <el-icon class="error-icon timeout-icon"><Clock /></el-icon>
+        <div class="error-label">任务超时</div>
+        <div class="timeout-tip">请查看历史记录或重试</div>
         <el-button size="small" @click="emit('regenerate', props.imageType)" class="retry-btn">重试</el-button>
       </div>
 
@@ -84,7 +92,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { Download, Refresh, Edit, Delete, CircleCloseFilled } from '@element-plus/icons-vue'
+import { Download, Refresh, Edit, Delete, CircleCloseFilled, Clock } from '@element-plus/icons-vue'
 
 const props = defineProps({
   url: { type: String, default: null },
@@ -137,7 +145,7 @@ watch(
 watch(
   () => props.status,
   (s) => {
-    if (s === 'failed') stickyUrl.value = null
+    if (s === 'failed' || s === 'timeout') stickyUrl.value = null
   }
 )
 
@@ -234,7 +242,8 @@ const download = async () => {
   transform: translateY(-4px);
   border-color: var(--el-color-primary-light-5);
 }
-.result-card.is-failed {
+.result-card.is-failed,
+.result-card.is-timeout {
   border-color: var(--el-color-danger-light-5);
 }
 
@@ -401,6 +410,13 @@ const download = async () => {
 }
 .retry-btn {
   margin-top: 4px;
+}
+.timeout-icon {
+  color: var(--el-color-warning);
+}
+.timeout-tip {
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 
 .result-card { will-change: transform; }

@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { httpGet, httpPost, httpDelete } from '@/utils/http'
 import { checkSession } from '@/store/cache'
 import { showMessageOK } from '@/utils/dialog'
+import { ElMessage } from 'element-plus'
 
 const MODULE_CAPS = {
   clone: 'img2img',
@@ -186,6 +187,9 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
   // 会话级历史：未刷新浏览器时保留已完成任务的图片
   const history = ref([])
   let pollTimer = null
+  let lastProgressChangeAt = 0
+  let pollFailCount = 0
+  const POLL_TIMEOUT_MS = 10 * 60 * 1000
 
   // 模块中文名映射（与后端 image_service.go moduleLabel 保持一致）
   const MODULE_LABELS = {
@@ -303,23 +307,35 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
     }))
 
     useEcomConfigStore().deductPower(creditCost)
+    lastProgressChangeAt = Date.now()
+    pollFailCount = 0
     startPolling()
     return res.data
   }
 
   const startPolling = () => {
     if (pollTimer) clearInterval(pollTimer)
+    if (!lastProgressChangeAt) lastProgressChangeAt = Date.now()
+    pollFailCount = 0
     pollTimer = setInterval(async () => {
       const taskNo = currentTask.value?.task_no
       if (!taskNo) { _stopPolling(); return }
       try {
         const res = await httpGet(`/api/ai-commerce/tasks/${taskNo}`)
-        if (currentTask.value?.task_no !== taskNo) return // stale response guard
+        if (currentTask.value?.task_no !== taskNo) return
+        pollFailCount = 0
         if (res.code === 0) {
           const originalCost = currentTask.value?.credit_cost || 0
+          const prevProgress = currentTask.value?.progress || 0
+          const prevItemsKey = JSON.stringify(items.value.map((i) => i.status + i.phase))
           Object.assign(currentTask.value, res.data)
           items.value = mergeItems(items.value, res.data.items || [])
           outputs.value = res.data.outputs || []
+          const newProgress = res.data.progress || 0
+          const newItemsKey = JSON.stringify(items.value.map((i) => i.status + i.phase))
+          if (newProgress !== prevProgress || newItemsKey !== prevItemsKey) {
+            lastProgressChangeAt = Date.now()
+          }
           if (res.data.status === 'succeeded' || res.data.status === 'failed') {
             const actualCost = res.data.credit_cost ?? originalCost
             if (actualCost < originalCost) {
@@ -341,9 +357,22 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
           } else if (res.data.status === 'failed') {
             localStorage.removeItem('ecom_pending_task')
             _stopPolling()
+          } else if (Date.now() - lastProgressChangeAt > POLL_TIMEOUT_MS) {
+            currentTask.value.status = 'timeout'
+            items.value.forEach((i) => {
+              if (i.status === 'running' || i.status === 'pending') i.status = 'timeout'
+            })
+            ElMessage.warning('任务处理超时，请稍后在历史记录中查看或重试')
+            _stopPolling()
           }
         }
-      } catch (_) { _stopPolling() }
+      } catch (_) {
+        pollFailCount++
+        if (pollFailCount >= 3) {
+          ElMessage.error('网络连接多次失败，已停止轮询')
+          _stopPolling()
+        }
+      }
     }, 3000)
   }
 
@@ -510,6 +539,8 @@ export const useEcomTaskStore = defineStore('ecomTask', () => {
           asset_no: '',
         }))
       }
+      lastProgressChangeAt = Date.now()
+      pollFailCount = 0
       startPolling()
     } catch (_) {
       localStorage.removeItem('ecom_pending_task')
