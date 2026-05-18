@@ -170,7 +170,7 @@
     </div>
 
     <!-- 历史结果（会话级，未刷新前保留） -->
-    <EcomHistoryGroup @edit="(task, item, p) => openEdit(task, item, p)" />
+    <EcomHistoryGroup @edit="(task, item, p) => openEdit(task, item, p)" @regenerate="submit" />
 
     <EcomEditDialog
       v-model="editVisible"
@@ -308,9 +308,11 @@ const handleSizeChartDelete = () => {
   ElMessage.info('尺码数据已移除，将使用默认规格')
 }
 
-const submit = async () => {
-  if (!selectedTypes.value.length) { typeValidate.value = true; ElMessage.warning('请至少选择一种图片类型'); return }
-  if (configStore.userPower < estimatedCost.value) {
+const submit = async (retryImageType) => {
+  const types = retryImageType ? [retryImageType] : selectedTypes.value
+  if (!types.length) { typeValidate.value = true; ElMessage.warning('请至少选择一种图片类型'); return }
+  const cost = types.length * configStore.getModelUnitPrice(null, 'detail_page')
+  if (configStore.userPower < cost) {
     ElMessage.error('算力不足，请充值后重试'); return
   }
 
@@ -318,7 +320,7 @@ const submit = async () => {
     await taskStore.submitTask('/api/ai-commerce/detail-pages', {
       ...form.value,
       module: 'detail_page',
-      image_type: selectedTypes.value.join(','),
+      image_type: types.join(','),
       model: configStore.selectedModel,
     })
   } catch (e) {

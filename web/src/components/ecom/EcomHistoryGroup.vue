@@ -24,6 +24,7 @@
           :deletable="false"
           :editable="entry.status === 'succeeded' && !!entry.assetNo"
           @edit="(p) => emit('edit', batch, { url: entry.url, asset_no: entry.assetNo, image_type: entry.imageType }, p)"
+          @regenerate="(imageType) => emit('regenerate', imageType)"
         />
       </transition-group>
     </div>
@@ -37,7 +38,7 @@ import { useEcomTaskStore } from '@/store/ecom'
 import EcomResultCard from '@/components/ecom/EcomResultCard.vue'
 
 const taskStore = useEcomTaskStore()
-const emit = defineEmits(['edit'])
+const emit = defineEmits(['edit', 'regenerate'])
 
 // 把 batch.items / batch.outputs 两种数据形态归一化为统一的卡片列表，方便 TransitionGroup 渲染
 const normalizedEntries = (batch) => {

@@ -169,7 +169,7 @@
     </div>
 
     <!-- 历史结果（会话级，未刷新前保留） -->
-    <EcomHistoryGroup @edit="(task, item, p) => openEdit(task, item, p)" />
+    <EcomHistoryGroup @edit="(task, item, p) => openEdit(task, item, p)" @regenerate="submit" />
 
     <EcomEditDialog
       v-model="editVisible"
@@ -286,9 +286,11 @@ const copywrite = async () => {
   }
 }
 
-const submit = async () => {
-  if (!selectedTypes.value.length) { typeValidate.value = true; ElMessage.warning('请至少选择一种图片类型'); return }
-  if (configStore.userPower < estimatedCost.value) {
+const submit = async (retryImageType) => {
+  const types = retryImageType ? [retryImageType] : selectedTypes.value
+  if (!types.length) { typeValidate.value = true; ElMessage.warning('请至少选择一种图片类型'); return }
+  const cost = types.length * configStore.getModelUnitPrice(null, 'main_image')
+  if (configStore.userPower < cost) {
     ElMessage.error('算力不足，请充值后重试'); return
   }
 
@@ -296,7 +298,7 @@ const submit = async () => {
     await taskStore.submitTask('/api/ai-commerce/main-images', {
       ...form.value,
       module: 'main_image',
-      image_type: selectedTypes.value.join(','),
+      image_type: types.join(','),
       model: configStore.selectedModel,
     })
   } catch (e) {
