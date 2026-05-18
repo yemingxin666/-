@@ -129,7 +129,7 @@
         <button
           class="submit-btn"
           type="button"
-          @click="submit"
+          @click="submit()"
           :disabled="taskStore.isRunning || !form.reference_assets.length"
         >
           {{ taskStore.isRunning ? '生成中...' : '立即生成' }}
