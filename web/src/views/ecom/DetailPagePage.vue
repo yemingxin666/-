@@ -154,6 +154,7 @@
           :deletable="false"
           :editable="item.status === 'succeeded' && !!item.asset_no"
           @edit="(p) => openEdit(taskStore.currentTask, item, p)"
+          @regenerate="submit"
         />
       </template>
       <template v-else>
@@ -163,6 +164,7 @@
           :url="url"
           :ratio="taskStore.submittedRatio"
           :deletable="false"
+          @regenerate="submit"
         />
       </template>
     </div>
